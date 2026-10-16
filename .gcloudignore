@@ -1,0 +1,7 @@
+# Cloud Build 只需要這三個檔；其餘一律不上傳
+*
+!Dockerfile
+!proto/
+!proto/scripts/
+!proto/scripts/http_range.py
+!proto/scripts/viewer_bundle_server.py

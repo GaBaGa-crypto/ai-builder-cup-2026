@@ -1,0 +1,53 @@
+{
+  "version": "prereg-v1",
+  "registered": "2026-10-14, before any feature or score exists",
+  "decided_by": "user (budget, merge, hit rule, VF-10 reference); others from model_map v0.6 and design/11",
+  "primary_contrast": "C1 vs B",
+  "required_baselines": {
+    "A": "context only",
+    "T": "clip_ratio, rms_dbfs, dur",
+    "M": "session and environment metadata"
+  },
+  "evaluation_slices": {
+    "inferential": "VF-10 test sessions (5 with anomalies, 5 all-normal)",
+    "exploratory": "VMX30Ui label-1 events with clip_ratio <= 0.01 (3 sessions; below the 4-session rule)",
+    "demo_only": "VM20i (anomaly results labelled 'confounded by clipping')"
+  },
+  "windows": {
+    "length_s": 2.0,
+    "hop_s": 1.0
+  },
+  "event_auc_pooling": "mean of top-3 window scores (all windows if fewer than 3)",
+  "false_alarm_budget": {
+    "alarms_per_normal_cutting_hour": 5,
+    "denominator": "label-0 cutting time of the validation sessions",
+    "alarm_merge": "above-threshold windows whose starts are <= 5 s apart form one alarm",
+    "threshold_fit": "lab: inner leave-one-session-out on the fold's training sessions; VF-10: leave-one-reference-out"
+  },
+  "hit_rule": "an anomalous event counts as detected if any window inside it exceeds the threshold",
+  "report_separately": [
+    "lab vs line",
+    "good-tool vs defective-tool label-1 recall",
+    "alarm rate on label-2 events",
+    "normal events inside sessions that also contain anomalies (shortcut test)"
+  ],
+  "uncertainty": {
+    "method": "session-cluster bootstrap",
+    "n": 2000,
+    "seed": 20261014,
+    "p_values_only_if": ">= 4 sessions with anomalies in the slice"
+  },
+  "training_data": "label-0 cutting events of the fold's training/reference sessions only; same machine only",
+  "alignment_note": "4 sessions with conf < 0.3 do not affect C1 (static context from label.csv); excluded only from research-version observer 2 and C2",
+  "splits_files": [
+    "fold_sessions.csv",
+    "train_normal.csv",
+    "fold_composition.csv"
+  ],
+  "splits_sha256": "779fc3bc67176eaa8cc2438c37cafe9cab0605ef434338ec9aa27a3d75612a1a",
+  "vf10_reference_datasets": [
+    2,
+    7,
+    12
+  ]
+}

@@ -1,0 +1,24 @@
+# 白名單：只追蹤程式、規格與部署檔；資料、報表、論文、交接檔一律不進版控
+/*
+!/.gitignore
+!/.gcloudignore
+!/README.md
+!/Dockerfile
+!/deploy/
+!/proto/
+/proto/*
+!/proto/scripts/
+!/design/
+/design/*
+!/design/bdd-*.md
+!/design/prereg-*
+__pycache__/
+*.pyc
+*.wav
+*.mp3
+*.sqlite
+*.npz
+*.csv
+*.xlsx
+*.pdf
+*.png

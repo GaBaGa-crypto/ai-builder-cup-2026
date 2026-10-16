@@ -1,0 +1,433 @@
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: inspection bench — session picker (module mode), title block, how-it-was-cut note, sticky transport bar, overview + waveform + spindle tracks, current-event card, event table. */
+:root {
+  --bg:#f1f3f1; --surface:#fff; --ink:#1c2321; --muted:#5a6561; --line:#d3d9d6; --accent:#2b5c7a;
+  --ok:#2c7a4d; --ok-fill:rgba(44,122,77,.16); --bad:#ad3434; --bad-fill:rgba(173,52,52,.18); --idle-fill:rgba(120,129,125,.10);
+  --two:#8a5a00; --two-fill:rgba(154,98,16,.16); --wave:#1c2321; --spindle:#2b5c7a; --sel:rgba(43,92,122,.10);
+  --b0:#1f5f8b; --b1:#2e8b57; --b2:#d07a12; --b3:#a23b72;
+  --font-display:"Noto Serif TC","Songti TC",serif; --font-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif; --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#131716; --surface:#1b201f; --ink:#e4eae7; --muted:#9ba6a1; --line:#2c3431; --accent:#82b2d1;
+  --ok:#6cc28f; --ok-fill:rgba(108,194,143,.18); --bad:#e77a7a; --bad-fill:rgba(231,122,122,.22); --idle-fill:rgba(141,151,146,.10);
+  --two:#e2a84d; --two-fill:rgba(226,168,77,.18); --wave:#dfe6e2; --spindle:#82b2d1; --sel:rgba(130,178,209,.12);
+  --b0:#6fb0dd; --b1:#5cc48a; --b2:#f0a145; --b3:#e07ab5; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#131716; --surface:#1b201f; --ink:#e4eae7; --muted:#9ba6a1; --line:#2c3431; --accent:#82b2d1;
+  --ok:#6cc28f; --ok-fill:rgba(108,194,143,.18); --bad:#e77a7a; --bad-fill:rgba(231,122,122,.22); --idle-fill:rgba(141,151,146,.10);
+  --two:#e2a84d; --two-fill:rgba(226,168,77,.18); --wave:#dfe6e2; --spindle:#82b2d1; --sel:rgba(130,178,209,.12);
+  --b0:#6fb0dd; --b1:#5cc48a; --b2:#f0a145; --b3:#e07ab5; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:15px; line-height:1.6; padding-inline:16px; padding-block:24px 56px; }
+.wrap { max-width:1200px; margin:0 auto; display:grid; gap:22px; }
+h1,h2 { margin:0; text-wrap:balance; }
+h1 { font-family:var(--font-display); font-size:clamp(1.5rem,3.6vw,2.1rem); line-height:1.25; }
+h2 { font-size:1.05rem; }
+p { margin:0; }
+.num, .mono { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+.label { font-family:var(--font-mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.picker { background:var(--surface); border:1.5px solid var(--accent); border-radius:4px; padding:12px 16px; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:end; }
+.picker label.f { display:grid; gap:2px; font-size:.8rem; color:var(--muted); min-width:0; }
+.picker select { font:inherit; font-size:.9rem; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:4px; padding:5px 8px; max-width:100%; }
+.picker select#pd { width:min(560px, 80vw); }
+.picker .status { font-size:.85rem; color:var(--muted); }
+.titleblock { border:1.5px solid var(--ink); background:var(--surface); display:grid; grid-template-columns:minmax(0,1fr) auto; }
+.titleblock .main { padding:18px 20px; display:grid; gap:6px; min-width:0; }
+.titleblock .meta { border-left:1.5px solid var(--ink); display:grid; grid-template-columns:repeat(2,auto); }
+.titleblock .meta div { padding:8px 14px; border-bottom:1px solid var(--line); border-right:1px solid var(--line); display:grid; }
+.titleblock .meta .v { font-family:var(--font-mono); font-weight:500; }
+.sub { color:var(--muted); }
+@media (max-width:760px) { .titleblock { grid-template-columns:1fr; } .titleblock .meta { border-left:0; border-top:1.5px solid var(--ink); } }
+.how { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:10px; }
+.how div { background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:10px 14px; font-size:.9rem; display:grid; gap:2px; }
+.how strong { font-size:.92rem; }
+.how span { color:var(--muted); }
+.sealed { background:var(--two-fill); border-left:3px solid var(--two); padding:10px 14px; border-radius:2px; }
+.bar { position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--bg); border-bottom:1px solid var(--line); padding-block:10px; display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+.group { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+button { font:inherit; font-size:.85rem; border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:4px 11px; border-radius:4px; cursor:pointer; }
+button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--bg); }
+button:disabled { opacity:.45; cursor:default; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+button.play { min-width:5.5em; font-weight:500; }
+.time { font-family:var(--font-mono); font-size:.9rem; min-width:13ch; }
+label.chk { display:flex; gap:5px; align-items:center; font-size:.85rem; color:var(--muted); cursor:pointer; }
+audio { width:min(320px,100%); height:32px; }
+.legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.82rem; color:var(--muted); }
+.sw { display:inline-block; width:14px; height:10px; border-radius:2px; vertical-align:middle; margin-right:5px; border:1px solid var(--line); }
+.tracks { background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:10px 12px; display:grid; gap:6px; }
+.tracks canvas { width:100%; display:block; }
+#ov { height:46px; cursor:pointer; } #wf { height:260px; cursor:crosshair; } #sp { height:96px; cursor:crosshair; }
+.bandc { height:84px; cursor:crosshair; }
+.tname { font-size:.75rem; color:var(--muted); display:flex; justify-content:space-between; gap:8px; }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:12px 16px; display:grid; gap:4px; }
+.card .h { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; }
+.pill { display:inline-flex; align-items:center; gap:5px; font-size:.78rem; font-weight:500; padding:1px 9px; border-radius:999px; white-space:nowrap; }
+.p0 { color:var(--ok); background:var(--ok-fill); } .p1 { color:var(--bad); background:var(--bad-fill); } .p2 { color:var(--two); background:var(--two-fill); } .pn { color:var(--muted); background:var(--idle-fill); }
+.filters { display:flex; flex-wrap:wrap; gap:4px; }
+.tablewrap { overflow:auto; max-height:520px; border:1px solid var(--line); border-radius:4px; background:var(--surface); }
+table { border-collapse:collapse; width:100%; min-width:900px; font-size:.85rem; }
+th,td { padding:5px 9px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+thead th { position:sticky; top:0; background:var(--bg); font-family:var(--font-mono); font-size:.7rem; letter-spacing:.06em; color:var(--muted); font-weight:500; z-index:1; }
+td.n { text-align:right; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+tbody tr { cursor:pointer; } tbody tr:hover { background:var(--sel); }
+tbody tr.cur { outline:2px solid var(--accent); outline-offset:-2px; background:var(--sel); }
+td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px; }
+.note { font-size:.85rem; color:var(--muted); }
+</style>
+
+<div class="wrap">
+  <section class="picker" id="picker" hidden aria-label="選擇場次">
+    <label class="f" for="pm">機台<select id="pm"></select></label>
+    <label class="f" for="pd">場次<select id="pd"></select></label>
+    <div class="group"><button type="button" id="prev">◀ 上一場</button><button type="button" id="next">下一場 ▶</button></div>
+    <label class="chk"><input type="checkbox" id="onlyAnom"> 只列含標籤 1 或 2 的場次</label>
+    <span class="status" id="status" aria-live="polite"></span>
+  </section>
+
+  <header class="titleblock">
+    <div class="main">
+      <span class="label" id="kicker">AI Builder Cup 2026 · 切段驗證</span>
+      <h1 id="title">切段驗證</h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <section class="how" aria-label="目前怎麼切的">
+    <div><strong>切削事件</strong><span>直接照抄 label.csv 每一列的起訖秒數，沒有自己切。顏色依該列的標籤：綠＝標籤 0 正常，紅＝標籤 1 異常，橙＝標籤 2 缺陷刀但切削正常。</span></div>
+    <div><strong>非切削事件</strong><span>相鄰兩列之間、第一列之前、最後一列之後的空隙，長度至少 0.5 秒才成立，灰色。</span></div>
+    <div><strong>時間對齊</strong><span id="aligntext"></span></div>
+    <div><strong>怎麼驗證</strong><span>按播放聽，看顏色邊界是否落在聲音變化處；也可對照下方主軸轉速。點波形任一處跳播，點下表任一列播放該段。</span></div>
+  </section>
+  <p class="sealed" id="sealednote" hidden></p>
+
+  <div class="bar" role="toolbar" aria-label="播放與檢視">
+    <div class="group" id="chans" aria-label="聲道"></div>
+    <div class="group"><button type="button" class="play" id="play">▶ 播放</button><span class="time" id="time">0.00 / 0.00 秒</span></div>
+    <div class="group" aria-label="縮放"><button type="button" data-z="0" id="z0">全場</button><button type="button" data-z="60" id="z60">60 秒</button><button type="button" data-z="20" id="z20">20 秒</button><button type="button" data-z="5" id="z5">5 秒</button>
+      <button type="button" id="left" aria-label="往前">◀</button><button type="button" id="right" aria-label="往後">▶</button></div>
+    <label class="chk"><input type="checkbox" id="follow" checked> 畫面跟著播放</label>
+    <label class="chk"><input type="checkbox" id="once"> 點選事件時只播該段</label>
+    <audio id="audio" controls preload="auto"></audio>
+  </div>
+
+  <div class="legend">
+    <span><span class="sw" style="background:var(--ok-fill);border-color:var(--ok)"></span>標籤 0 正常切削</span>
+    <span><span class="sw" style="background:var(--bad-fill);border-color:var(--bad)"></span>標籤 1 異常（應停機）</span>
+    <span><span class="sw" style="background:var(--two-fill);border-color:var(--two)"></span>標籤 2 缺陷刀但切削正常</span>
+    <span><span class="sw" style="background:var(--idle-fill)"></span>非切削</span>
+    <span><span class="sw" style="background:var(--accent);height:3px"></span>播放位置</span>
+    <span>波形顏色＝所在事件；虛線＝滿刻度（波形碰到即削波）</span>
+  </div>
+
+  <section class="tracks" aria-label="波形與主軸轉速">
+    <div class="tname"><span>全場總覽（點一下移到該處；框＝目前視窗）</span><span id="ovinfo"></span></div>
+    <canvas id="ov"></canvas>
+    <div class="tname"><span id="wfname">波形</span><span id="wininfo" class="mono"></span></div>
+    <canvas id="wf" aria-label="波形圖，依事件著色"></canvas>
+    <div class="tname"><span id="bandname">頻帶音量（dB 相對滿刻度；與 PDF 四塊圖相同，0.1 秒一格，縮小時取能量平均）</span><span id="bandinfo" class="mono"></span></div>
+    <canvas class="bandc" id="bd0" aria-label="0 到 4 kHz 頻帶音量"></canvas>
+    <canvas class="bandc" id="bd1" aria-label="1 到 4 kHz 頻帶音量"></canvas>
+    <canvas class="bandc" id="bd2" aria-label="4 到 10 kHz 頻帶音量"></canvas>
+    <canvas class="bandc" id="bd3" aria-label="10 到 24 kHz 頻帶音量"></canvas>
+    <div class="tname"><span>主軸轉速（控制器 MTConnect，rpm）</span><span id="spinfo" class="mono"></span></div>
+    <canvas id="sp" aria-label="主軸轉速"></canvas>
+  </section>
+
+  <section class="card" aria-live="polite" id="card"></section>
+
+  <section style="display:grid;gap:10px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between">
+      <h2>事件表</h2>
+      <div class="filters" id="filters">
+        <button type="button" data-f="all" aria-pressed="true">全部</button><button type="button" data-f="cut" aria-pressed="false">切削</button>
+        <button type="button" data-f="l1" aria-pressed="false">標籤 1</button><button type="button" data-f="l2" aria-pressed="false">標籤 2</button>
+        <button type="button" data-f="l0" aria-pressed="false">標籤 0</button><button type="button" data-f="nc" aria-pressed="false">非切削</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>類別</th><th>起秒</th><th>迄秒</th><th>長度秒</th><th>N rpm</th><th>F mm/s</th><th>ap mm</th><th>ae mm</th><th>Z</th><th>D mm</th><th>方向</th><th>刀具</th><th>s0 削波比例</th><th>s0 音量 dBFS</th></tr></thead><tbody id="tb"></tbody></table></div>
+    <p class="note" id="audionote"></p>
+  </section>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var audio = $("audio");
+  var I, EV = [], CH = {}, SP = { t: [], v: [] }, chNames = [], dur = 1, chan = "s0", view = [0, 1], selected = null, filter = "all";
+  var pending = null, lastCur, C = {};
+  var fmt = function (v, d) { return v == null ? "—" : (+v).toFixed(d); };
+  var num = function (v) { return v == null ? "" : (Math.round(v * 10000) / 10000).toString(); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  function b64(s) { var b = atob(s), a = new Int8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = (b.charCodeAt(i) << 24) >> 24; return a; }
+  function b64i16(s) { var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new Int16Array(u.buffer); }
+  var BANDLAB = { "0-4k": "0–4 kHz", "1-4k": "1–4 kHz", "4-10k": "4–10 kHz", "10-24k": "10–24 kHz" };
+  function prepBands(c) {
+    // dB×10 → 線性能量（縮放時做能量平均）；縱軸範圍取整場每秒能量平均的第 1 百分位到最大值（同 PDF）
+    var B = c.bands; if (!B) return; B.p = {}; B.lim = {};
+    B.names.forEach(function (nm) {
+      var d = b64i16(B.db10[nm]), p = new Float64Array(d.length);
+      for (var i = 0; i < d.length; i++) p[i] = Math.pow(10, d[i] / 100);
+      B.p[nm] = p;
+      var k = Math.max(1, Math.round(1 / B.hop)), sec = [];
+      for (var j = 0; j + k <= p.length; j += k) { var s = 0; for (var q = j; q < j + k; q++) s += p[q]; sec.push(10 * Math.log10(s / k + 1e-12)); }
+      sec.sort(function (a, b) { return a - b; });
+      var lo = sec.length ? sec[Math.floor(sec.length * 0.01)] : -100, hi = sec.length ? sec[sec.length - 1] : 0;
+      B.lim[nm] = [lo - 4, hi + 3];
+    });
+  }
+
+  // ---------- one session ----------
+  function useSession(D) {
+    audio.pause();
+    I = D.info; EV = D.events; CH = D.chans; SP = D.spindle; dur = I.dur; selected = null; lastCur = undefined;
+    chNames = Object.keys(CH);
+    chNames.forEach(function (c) { CH[c].fineA = b64(CH[c].fine); CH[c].coarseA = b64(CH[c].coarse); prepBands(CH[c]); });
+    if (chNames.indexOf(chan) < 0) chan = chNames[0];
+    $("title").textContent = I.machine + " dataset" + I.dataset + " 切段驗證";
+    document.title = I.machine + " ds" + I.dataset + " 切段驗證";
+    $("kicker").textContent = "AI Builder Cup 2026 · 切段驗證 · " + (I.sealed ? "此場次切段封存" : "標籤已依使用者要求顯示（偏離紀錄 D2／D3）");
+    $("subtitle").textContent = "材料 " + I.material + "｜刀具 " + I.tools + "｜資料集備註：" + I.remark;
+    var meta = [["場次", I.sid], ["長度", (dur / 60).toFixed(1) + " 分（" + dur.toFixed(1) + " 秒）"],
+      ["標籤 0 路徑", I.sealed ? "封存" : I.n0], ["標籤 1 路徑", I.sealed ? "封存" : I.n1], ["標籤 2 路徑", I.sealed ? "封存" : I.n2], ["非切削段", I.sealed ? "封存" : I.nnc]];
+    $("meta").innerHTML = meta.map(function (m) { return '<div><span class="label">' + m[0] + '</span><span class="v">' + esc(m[1]) + "</span></div>"; }).join("");
+    var A = I.align;
+    $("aligntext").textContent = "聲音與控制器檔名時間戳相同（名目偏移 0）。第 2 步以主軸" + (A.anchor === "spindle_speed_rpm" ? "轉速" : "負載") + "估偏移：前半 " + fmt(A.head, 1) + " 秒、後半 " + fmt(A.tail, 1) + " 秒，信心 " + fmt(A.conf, 2) + "（只記錄，未修正時間軸）。";
+    $("sealednote").hidden = !I.sealed;
+    $("sealednote").textContent = "這是 VF-10 測試場次，依 2026-10-14 預先登記封存：只顯示聲音、波形與主軸轉速，不顯示切段與標籤。要看切段，需由你決定以 --unseal-vf10 重新啟動模組（會記一筆偏離）。";
+    document.querySelectorAll("#filters button").forEach(function (b) { b.disabled = I.sealed; });
+    var lossy = /\.mp3$/.test(CH[chan].url);
+    $("audionote").textContent = "削波比例＝滿刻度樣本占比（s0）。" + (lossy ? "MP3 約 160 kbps 只供試聽；" : "播放的是原始 WAV（48 kHz、16-bit，無壓縮）；") + "波形由原始 WAV 計算。";
+    $("chans").innerHTML = chNames.map(function (c) { return '<button type="button" data-ch="' + c + '" aria-pressed="false" title="' + esc(CH[c].name) + '">' + c + "</button>"; }).join("");
+    filter = "all"; document.querySelectorAll("#filters button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.f === "all")); });
+    view = [0, dur];
+    setChan(chan, 0, false);
+    fillTable(); zoom(60);
+  }
+
+  function setChan(c, t, play) {
+    if (t == null) { t = pending ? pending.t : (audio.currentTime || 0); play = pending ? pending.play : !audio.paused; }
+    chan = c; pending = { t: t, play: play }; audio.src = CH[c].url;
+    document.querySelectorAll("#chans button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.ch === c)); });
+    $("wfname").textContent = "波形：" + CH[c].name + "（整場削波樣本 " + (CH[c].clip * 100).toFixed(2) + "%）";
+    $("bandinfo").textContent = CH[c].name;
+    render();
+  }
+  $("chans").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) setChan(b.dataset.ch); });
+  audio.addEventListener("loadedmetadata", function () { if (pending) { var p = pending; pending = null; audio.currentTime = p.t; if (p.play) audio.play().catch(function () {}); } });
+
+  // ---------- drawing ----------
+  function readColors() { var s = getComputedStyle(document.documentElement); ["ink", "muted", "line", "accent", "ok", "ok-fill", "bad", "bad-fill", "two", "two-fill", "idle-fill", "wave", "spindle", "surface", "sel", "b0", "b1", "b2", "b3"].forEach(function (k) { C[k] = s.getPropertyValue("--" + k).trim(); }); }
+  readColors();
+  try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { readColors(); render(); }); } catch (e) {}
+  function setup(cv) { var r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d)); var g = cv.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0); return { g: g, w: r.width, h: r.height }; }
+  function evFill(e) { return !e.cut ? C["idle-fill"] : e.lab === 1 ? C["bad-fill"] : e.lab === 2 ? C["two-fill"] : C["ok-fill"]; }
+  function evEdge(e) { return !e.cut ? C.muted : e.lab === 1 ? C.bad : e.lab === 2 ? C.two : C.ok; }
+  function findEvent(t) { var lo = 0, hi = EV.length - 1; while (lo <= hi) { var m = (lo + hi) >> 1; if (EV[m].e <= t) lo = m + 1; else if (EV[m].s > t) hi = m - 1; else return EV[m]; } return null; }
+  function drawEvents(o, v0, v1, top, h, labels) {
+    var k = o.w / (v1 - v0);
+    EV.forEach(function (e) {
+      if (e.e < v0 || e.s > v1) return;
+      var x0 = (e.s - v0) * k, x1 = (e.e - v0) * k;
+      o.g.fillStyle = evFill(e); o.g.fillRect(x0, top, x1 - x0, h);
+      if (e.cut) { o.g.fillStyle = evEdge(e); o.g.fillRect(x0, top, x1 - x0, 3); }
+      if (labels && x1 - x0 > 26) { o.g.fillStyle = C.muted; o.g.font = "11px " + getComputedStyle(document.body).fontFamily; o.g.fillText("#" + e.i, x0 + 3, top + 15); }
+      if (selected && selected.i === e.i) { o.g.strokeStyle = C.accent; o.g.lineWidth = 2; o.g.strokeRect(x0 + 1, top + 1, x1 - x0 - 2, h - 2); }
+    });
+  }
+  function envRange(c, t0, t1, useFine) {
+    var arr = useFine ? c.fineA : c.coarseA, per = useFine ? c.fper : c.cper, n = arr.length / 2;
+    var b0 = Math.max(0, Math.floor(t0 * c.sr / per)), b1 = Math.min(n, Math.max(b0 + 1, Math.ceil(t1 * c.sr / per)));
+    var mn = 127, mx = -128;
+    for (var b = b0; b < b1; b++) { var a = arr[2 * b], z = arr[2 * b + 1]; if (a < mn) mn = a; if (z > mx) mx = z; }
+    return b0 >= n ? null : [mn / 127, mx / 127];
+  }
+  function drawWave(o, v0, v1, top, h) {
+    var c = CH[chan]; if (!c) return;
+    var spp = (v1 - v0) / o.w * c.sr, useFine = spp < c.cper, mid = top + h / 2, amp = h / 2 - 6;
+    o.g.strokeStyle = C.muted; o.g.setLineDash([4, 4]); o.g.lineWidth = 1;
+    [mid - amp, mid + amp].forEach(function (y) { o.g.beginPath(); o.g.moveTo(0, y); o.g.lineTo(o.w, y); o.g.stroke(); });
+    // 波形本身依事件上色：飽和音檔會把整個高度填滿、蓋住底色，所以顏色要畫在波形上
+    o.g.setLineDash([]); o.g.lineWidth = 1;
+    var cur = null;
+    for (var x = 0; x < o.w; x++) {
+      var ta = v0 + x / o.w * (v1 - v0), tb = v0 + (x + 1) / o.w * (v1 - v0);
+      var r = envRange(c, ta, tb, useFine);
+      if (!r) continue;
+      var e = findEvent((ta + tb) / 2), col = e ? evEdge(e) : (EV.length ? C.muted : C.wave);
+      if (col !== cur) { if (cur) o.g.stroke(); o.g.strokeStyle = col; o.g.beginPath(); cur = col; }
+      o.g.moveTo(x + 0.5, mid - r[1] * amp); o.g.lineTo(x + 0.5, mid - r[0] * amp + 0.5);
+    }
+    if (cur) o.g.stroke();
+  }
+  function niceStep(span, px) { var raw = span / Math.max(1, px / 90), p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+  function drawAxis(o, v0, v1, y) {
+    var st = niceStep(v1 - v0, o.w), k = o.w / (v1 - v0);
+    o.g.fillStyle = C.muted; o.g.strokeStyle = C.line; o.g.font = "11px " + getComputedStyle(document.body).fontFamily;
+    for (var t = Math.ceil(v0 / st) * st; t <= v1; t += st) { var x = (t - v0) * k; o.g.beginPath(); o.g.moveTo(x, y - 4); o.g.lineTo(x, y); o.g.stroke(); o.g.fillText((st < 1 ? t.toFixed(1) : Math.round(t)) + " s", x + 2, y - 6); }
+  }
+  function playhead(o, v0, v1) { var t = audio.currentTime || 0; if (t < v0 || t > v1) return; var x = (t - v0) / (v1 - v0) * o.w; o.g.fillStyle = C.accent; o.g.fillRect(x - 1, 0, 2, o.h); }
+  function drawBand(o, idx, v0, v1) {
+    var B = CH[chan] && CH[chan].bands; if (!B) return;
+    var nm = B.names[idx], p = B.p[nm], lim = B.lim[nm], col = C["b" + idx], top = 4, h = o.h - 8;
+    drawEvents(o, v0, v1, 0, o.h, false);
+    var y = function (dB) { return top + (1 - (dB - lim[0]) / (lim[1] - lim[0])) * h; };
+    o.g.strokeStyle = C.line; o.g.lineWidth = 1; o.g.setLineDash([2, 3]);
+    [lim[0] + 4, lim[1] - 3].forEach(function (v) { o.g.beginPath(); o.g.moveTo(0, y(v)); o.g.lineTo(o.w, y(v)); o.g.stroke(); });
+    o.g.setLineDash([]); o.g.strokeStyle = col; o.g.lineWidth = 1.3; o.g.beginPath();
+    var started = false;
+    for (var x = 0; x < o.w; x++) {
+      var ta = v0 + x / o.w * (v1 - v0), tb = v0 + (x + 1) / o.w * (v1 - v0);
+      var i0 = Math.max(0, Math.floor((ta - B.t0) / B.hop)), i1 = Math.min(B.n, Math.max(i0 + 1, Math.ceil((tb - B.t0) / B.hop)));
+      if (i0 >= B.n) break;
+      var s = 0; for (var i = i0; i < i1; i++) s += p[i];
+      var yy = Math.max(top, Math.min(top + h, y(10 * Math.log10(s / (i1 - i0) + 1e-12))));
+      if (!started) { o.g.moveTo(x + 0.5, yy); started = true; } else o.g.lineTo(x + 0.5, yy);
+    }
+    o.g.stroke();
+    var font = getComputedStyle(document.body).fontFamily;
+    o.g.font = "bold 12px " + font; var lab = BANDLAB[nm] || nm, wl = o.g.measureText(lab).width;
+    o.g.fillStyle = C.surface; o.g.globalAlpha = 0.85; o.g.fillRect(4, 3, wl + 8, 17); o.g.globalAlpha = 1;
+    o.g.fillStyle = col; o.g.fillText(lab, 8, 16);
+    o.g.font = "10px " + font;
+    [[lim[1] - 3, 11], [lim[0] + 4, -3]].forEach(function (tk) {  // 刻度文字加底色，避免壓在曲線上看不清
+      var txt = Math.round(tk[0]) + " dB", tw = o.g.measureText(txt).width, ty = y(tk[0]) + tk[1];
+      o.g.fillStyle = C.surface; o.g.globalAlpha = 0.85; o.g.fillRect(o.w - tw - 8, ty - 10, tw + 6, 13); o.g.globalAlpha = 1;
+      o.g.fillStyle = C.muted; o.g.fillText(txt, o.w - tw - 5, ty);
+    });
+    playhead(o, v0, v1);
+  }
+  function render() {
+    if (!I) return;
+    var ov = setup($("ov")), wf = setup($("wf")), sp = setup($("sp"));
+    ov.g.clearRect(0, 0, ov.w, ov.h); drawEvents(ov, 0, dur, 0, ov.h, false); drawWave(ov, 0, dur, 0, ov.h);
+    var k = ov.w / dur; ov.g.strokeStyle = C.accent; ov.g.lineWidth = 2; ov.g.strokeRect(view[0] * k + 1, 1, Math.max(3, (view[1] - view[0]) * k - 2), ov.h - 2); playhead(ov, 0, dur);
+    wf.g.clearRect(0, 0, wf.w, wf.h); drawEvents(wf, view[0], view[1], 0, wf.h - 18, true); drawWave(wf, view[0], view[1], 4, wf.h - 26); drawAxis(wf, view[0], view[1], wf.h); playhead(wf, view[0], view[1]);
+    for (var bi = 0; bi < 4; bi++) { var bo = setup($("bd" + bi)); bo.g.clearRect(0, 0, bo.w, bo.h); drawBand(bo, bi, view[0], view[1]); }
+    sp.g.clearRect(0, 0, sp.w, sp.h); drawEvents(sp, view[0], view[1], 0, sp.h, false);
+    var vmax = 0; SP.v.forEach(function (v) { if (v != null && v > vmax) vmax = v; }); vmax = vmax || 1;
+    sp.g.strokeStyle = C.spindle; sp.g.lineWidth = 1.5; sp.g.beginPath(); var started = false, ks = sp.w / (view[1] - view[0]);
+    for (var i = 0; i < SP.t.length; i++) {
+      var t0 = SP.t[i], t1 = i + 1 < SP.t.length ? SP.t[i + 1] : dur, v = SP.v[i]; if (v == null || t1 < view[0] || t0 > view[1]) continue;
+      var y = sp.h - 6 - v / vmax * (sp.h - 14), x0 = (Math.max(t0, view[0]) - view[0]) * ks, x1 = (Math.min(t1, view[1]) - view[0]) * ks;
+      if (!started) { sp.g.moveTo(x0, y); started = true; } else sp.g.lineTo(x0, y); sp.g.lineTo(x1, y);
+    }
+    sp.g.stroke(); playhead(sp, view[0], view[1]);
+    $("spinfo").textContent = "0–" + Math.round(vmax) + " rpm";
+    $("wininfo").textContent = view[0].toFixed(2) + "–" + view[1].toFixed(2) + " 秒（" + (view[1] - view[0]).toFixed(1) + " 秒寬）";
+    $("ovinfo").textContent = dur.toFixed(1) + " 秒";
+  }
+
+  // ---------- view ----------
+  function setView(a, w) { w = Math.min(w, dur); a = Math.max(0, Math.min(a, dur - w)); view = [a, a + w]; render(); }
+  function zoom(w) { if (!w) { setView(0, dur); } else { var c = audio.currentTime > 0 ? audio.currentTime : view[0] + w / 2; setView(c - w / 2, w); } document.querySelectorAll("[data-z]").forEach(function (b) { b.setAttribute("aria-pressed", String(+b.dataset.z === w)); }); }
+  document.querySelectorAll("[data-z]").forEach(function (b) { b.addEventListener("click", function () { zoom(+b.dataset.z); }); });
+  $("left").addEventListener("click", function () { var w = view[1] - view[0]; setView(view[0] - w * 0.8, w); });
+  $("right").addEventListener("click", function () { var w = view[1] - view[0]; setView(view[0] + w * 0.8, w); });
+  $("ov").addEventListener("click", function (e) { var r = this.getBoundingClientRect(), t = (e.clientX - r.left) / r.width * dur, w = view[1] - view[0]; setView(t - w / 2, w); });
+  ["wf", "sp", "bd0", "bd1", "bd2", "bd3"].forEach(function (id) { $(id).addEventListener("click", function (e) { var r = this.getBoundingClientRect(); seek(view[0] + (e.clientX - r.left) / r.width * (view[1] - view[0]), false); }); });
+
+  // ---------- playback ----------
+  function seek(t, play) {
+    t = Math.max(0, Math.min(dur, t));
+    if (audio.readyState < 1) { pending = { t: t, play: !!play }; return; }
+    audio.currentTime = t; if (play) audio.play().catch(function () {}); render(); tick();
+  }
+  $("play").addEventListener("click", function () { if (audio.paused) audio.play().catch(function () {}); else audio.pause(); });
+  audio.addEventListener("play", function () { $("play").textContent = "❚❚ 暫停"; loop(); });
+  audio.addEventListener("pause", function () { $("play").textContent = "▶ 播放"; render(); tick(); });
+  audio.addEventListener("seeked", function () { render(); tick(); });
+  function tick() {
+    var t = audio.currentTime || 0;
+    $("time").textContent = t.toFixed(2) + " / " + dur.toFixed(2) + " 秒";
+    if ($("once").checked && selected && !audio.paused && t >= selected.e) audio.pause();
+    var e = findEvent(t);
+    if (e !== lastCur) { lastCur = e; showCard(e); document.querySelectorAll("#tb tr[data-i]").forEach(function (r) { r.classList.toggle("cur", e != null && +r.dataset.i === e.i); }); }
+  }
+  function loop() { if (audio.paused) return; var t = audio.currentTime, w = view[1] - view[0]; if ($("follow").checked && w < dur && (t > view[1] - w * 0.05 || t < view[0])) setView(t - w * 0.1, w); else render(); tick(); requestAnimationFrame(loop); }
+
+  // ---------- card & table ----------
+  function pill(e) { return !e.cut ? '<span class="pill pn">非切削</span>' : e.lab === 1 ? '<span class="pill p1">標籤 1 異常</span>' : e.lab === 2 ? '<span class="pill p2">標籤 2 缺陷刀</span>' : '<span class="pill p0">標籤 0 正常</span>'; }
+  function showCard(e) {
+    if (I.sealed) { $("card").innerHTML = '<div class="h"><strong>切段封存</strong><span class="note">此場次不顯示事件；可以聽聲音、看波形與主軸轉速。</span></div>'; return; }
+    if (!e) { $("card").innerHTML = '<div class="h"><strong>目前位置不在任何事件內</strong><span class="note">（小於 0.5 秒的空隙不算事件）</span></div>'; return; }
+    var cond = e.cut ? "N " + num(e.N) + " rpm｜F " + num(e.F) + " mm/s｜ap " + num(e.ap) + " mm｜ae " + num(e.ae) + " mm｜Z " + num(e.Z) + "｜D " + num(e.D) + " mm｜" + e.dir + "｜刀具 " + esc(e.tool) : "非切削段沒有工況";
+    $("card").innerHTML = '<div class="h"><strong>目前事件 #' + e.i + "</strong>" + pill(e) + '<span class="mono">' + e.s.toFixed(3) + "–" + e.e.toFixed(3) + " 秒（" + e.d.toFixed(2) + " 秒）</span></div><div>" + cond + '</div><div class="note">s0 削波比例 ' + (e.clip * 100).toFixed(2) + "%｜s0 音量 " + e.rms + " dBFS</div>";
+  }
+  function rowHTML(e) {
+    return '<tr data-i="' + e.i + '"><td class="n">' + e.i + "</td><td>" + pill(e) + '</td><td class="n">' + e.s.toFixed(3) + '</td><td class="n">' + e.e.toFixed(3) + '</td><td class="n">' + e.d.toFixed(2) +
+      '</td><td class="n">' + num(e.N) + '</td><td class="n">' + num(e.F) + '</td><td class="n">' + num(e.ap) + '</td><td class="n">' + num(e.ae) + '</td><td class="n">' + num(e.Z) + '</td><td class="n">' + num(e.D) +
+      "</td><td>" + e.dir + "</td><td>" + esc(e.tool) + '</td><td class="n">' + (e.clip * 100).toFixed(2) + '%</td><td class="n">' + e.rms + "</td></tr>";
+  }
+  function keep(e) { return filter === "all" || (filter === "cut" && e.cut) || (filter === "l1" && e.cut && e.lab === 1) || (filter === "l2" && e.cut && e.lab === 2) || (filter === "l0" && e.cut && e.lab === 0) || (filter === "nc" && !e.cut); }
+  function fillTable() {
+    var rows = EV.filter(keep);
+    $("tb").innerHTML = I.sealed ? '<tr><td class="empty" colspan="15">此場次切段封存，不列事件。</td></tr>'
+      : rows.length ? rows.map(rowHTML).join("") : '<tr><td class="empty" colspan="15">此篩選條件下沒有事件。</td></tr>';
+    lastCur = undefined; tick();
+  }
+  $("filters").addEventListener("click", function (ev) { var b = ev.target.closest("button"); if (!b || b.disabled) return; filter = b.dataset.f; document.querySelectorAll("#filters button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); }); fillTable(); });
+  $("tb").addEventListener("click", function (ev) {
+    var tr = ev.target.closest("tr[data-i]"); if (!tr) return; var e = EV.filter(function (x) { return x.i === +tr.dataset.i; })[0]; selected = e;
+    var w = view[1] - view[0]; if (w >= dur || w < e.d * 1.4) w = Math.max(20, e.d * 2.5); setView(e.s - (w - e.d) / 2, w);
+    seek(e.s, true);
+  });
+  new ResizeObserver(function () { render(); }).observe($("wf"));
+
+  // ---------- module mode: session picker ----------
+  var embedded = JSON.parse($("data").textContent);
+  if (embedded) { useSession(embedded); return; }
+  var SESS = [], loading = 0;
+  $("picker").hidden = false;
+  function kindText(s) {
+    if (s.sealed) return "VF-10 測試場次（切段封存）";
+    var k = (s.n1 ? "標籤1" : "") + (s.n1 && s.n2 ? "＋" : "") + (s.n2 ? "標籤2" : "");
+    return k ? k + (s.n0 ? " 混合" : " 全段") : "全部正常";
+  }
+  function optText(s) { return "ds" + (s.dataset < 10 ? "0" : "") + s.dataset + " · " + kindText(s) + (s.sealed ? "" : " · " + s.n0 + "／" + s.n1 + "／" + s.n2) + " · " + (s.dur / 60).toFixed(1) + " 分" + (s.remark ? " · " + s.remark : ""); }
+  function listFor(m) { return SESS.filter(function (s) { return s.machine_key === m && (!$("onlyAnom").checked || s.sealed || s.n1 || s.n2); }); }
+  function fillDatasets(m, keepDs) {
+    var L = listFor(m);
+    $("pd").innerHTML = L.map(function (s) { return '<option value="' + s.dataset + '">' + esc(optText(s)) + "</option>"; }).join("");
+    if (keepDs != null && L.some(function (s) { return s.dataset === keepDs; })) $("pd").value = String(keepDs);
+  }
+  function load(m, ds) {
+    var my = ++loading;
+    $("status").textContent = "載入中…（讀原始 WAV 算波形，約 1–3 秒）";
+    fetch("api/session?machine=" + encodeURIComponent(m) + "&ds=" + ds).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (D) {
+      if (my !== loading) return;
+      useSession(D); $("status").textContent = "";
+      try { history.replaceState(null, "", "#" + m + "-" + ds); } catch (e) {}
+    }).catch(function (e) { $("status").textContent = "載入失敗：" + e.message + "。請確認模組仍在執行。"; });
+  }
+  function current() { return [$("pm").value, +$("pd").value]; }
+  $("pm").addEventListener("change", function () { fillDatasets($("pm").value); var c = current(); load(c[0], c[1]); });
+  $("pd").addEventListener("change", function () { var c = current(); load(c[0], c[1]); });
+  $("onlyAnom").addEventListener("change", function () { var c = current(); fillDatasets(c[0], c[1]); if (+$("pd").value !== c[1]) { var n = current(); load(n[0], n[1]); } });
+  function step(d) { var o = $("pd").options, i = $("pd").selectedIndex + d; if (i < 0 || i >= o.length) return; $("pd").selectedIndex = i; var c = current(); load(c[0], c[1]); }
+  $("prev").addEventListener("click", function () { step(-1); });
+  $("next").addEventListener("click", function () { step(1); });
+  var machines = [];
+  function openHash() {
+    var h = /^#([a-z0-9_]+)-(\d+)$/.exec(location.hash), m = h ? h[1] : "imi_vm20i", ds = h ? +h[2] : 6;
+    if (machines.indexOf(m) < 0) m = machines[0];
+    if (I && I.machine_key === m && I.dataset === ds) return;
+    $("pm").value = m; fillDatasets(m, ds);
+    var c = current(); load(c[0], c[1]);
+  }
+  fetch("api/sessions").then(function (r) { return r.json(); }).then(function (list) {
+    SESS = list;
+    list.forEach(function (s) { if (machines.indexOf(s.machine_key) < 0) machines.push(s.machine_key); });
+    $("pm").innerHTML = machines.map(function (m) { var s = list.filter(function (x) { return x.machine_key === m; }); return '<option value="' + m + '">' + esc(s[0].machine) + "（" + s.length + " 場）</option>"; }).join("");
+    openHash();
+    window.addEventListener("hashchange", openHash);  // 直接改網址或瀏覽器上一頁也能切場次
+  }).catch(function (e) { $("status").textContent = "讀不到場次清單：" + e.message; });
+})();
+</script>
