@@ -23,6 +23,7 @@ MP3_LEVEL = 0.6         # 約 160 kbps；實測 ds6 s0 530 秒 → 10.6 MB
 CHANNELS = ["s0", "s1", "s2"]
 SHORT = {"imi_vm20i": "VM20i", "imi_vmx30ui": "VMX30Ui", "tmf_vf10": "VF-10"}
 MIC = {"s0": "s0 空氣麥克風 Fifine K053", "s1": "s1 接觸式聽診器", "s2": "s2 接觸式聽診器"}
+COOLANT_ZH = {"wet": "濕切", "dry": "乾切"}  # 冷卻條件：MSM 論文，實驗室濕切、產線乾切（build_db.py 的 COOLANT）
 TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session_viewer_template.html")
 PREREG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "design", "prereg-v1.json")
 
@@ -103,7 +104,7 @@ def build_payload(db_dir, raw, machine, ds, audio_url, sealed, band_cache=None):
         dict(i=int(r.idx), s=r.start, e=r.end, d=r.dur, cut=r.cut_state == "cutting", lab=int(r.label_std),
              N=num(r.N), F=num(r.F), ap=num(r.ap), ae=num(r.ae), Z=num(r.Z), D=num(r.D),
              dir={"DOWN": "順銑", "UP": "逆銑"}.get(r.direction, ""), tool=r.tool_class if isinstance(r.tool_class, str) else "",
-             clip=round(r.clip_ratio, 4), rms=round(r.rms_dbfs, 1)) for r in ev.itertuples()]
+             clip=round(r.clip_ratio, 4), cool=COOLANT_ZH.get(r.coolant, ""), rms=round(r.rms_dbfs, 1)) for r in ev.itertuples()]
     info = dict(machine=SHORT[machine], machine_key=machine, dataset=ds, sid=sid, dur=float(ses.s0_sec),
                 remark="（封存）" if sealed else (ss.remark or "（無備註）"), sealed=sealed,
                 material=", ".join(sorted(cut.material.unique())), tools=", ".join(sorted(cut.tool_class.unique())),

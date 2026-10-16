@@ -150,7 +150,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
         <button type="button" data-f="l0" aria-pressed="false">標籤 0</button><button type="button" data-f="nc" aria-pressed="false">非切削</button>
       </div>
     </div>
-    <div class="tablewrap"><table><thead><tr><th>#</th><th>類別</th><th>起秒</th><th>迄秒</th><th>長度秒</th><th>N rpm</th><th>F mm/s</th><th>ap mm</th><th>ae mm</th><th>Z</th><th>D mm</th><th>方向</th><th>刀具</th><th>s0 削波比例</th><th>s0 音量 dBFS</th></tr></thead><tbody id="tb"></tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>類別</th><th>起秒</th><th>迄秒</th><th>長度秒</th><th>N rpm</th><th>F mm/s</th><th>ap mm</th><th>ae mm</th><th>Z</th><th>D mm</th><th>方向</th><th>刀具</th><th>s0 削波比例</th><th>冷卻</th><th>s0 音量 dBFS</th></tr></thead><tbody id="tb"></tbody></table></div>
     <p class="note" id="audionote"></p>
   </section>
 </div>
@@ -359,12 +359,12 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
     if (I.sealed) { $("card").innerHTML = '<div class="h"><strong>切段封存</strong><span class="note">此場次不顯示事件；可以聽聲音、看波形與主軸轉速。</span></div>'; return; }
     if (!e) { $("card").innerHTML = '<div class="h"><strong>目前位置不在任何事件內</strong><span class="note">（小於 0.5 秒的空隙不算事件）</span></div>'; return; }
     var cond = e.cut ? "N " + num(e.N) + " rpm｜F " + num(e.F) + " mm/s｜ap " + num(e.ap) + " mm｜ae " + num(e.ae) + " mm｜Z " + num(e.Z) + "｜D " + num(e.D) + " mm｜" + e.dir + "｜刀具 " + esc(e.tool) : "非切削段沒有工況";
-    $("card").innerHTML = '<div class="h"><strong>目前事件 #' + e.i + "</strong>" + pill(e) + '<span class="mono">' + e.s.toFixed(3) + "–" + e.e.toFixed(3) + " 秒（" + e.d.toFixed(2) + " 秒）</span></div><div>" + cond + '</div><div class="note">s0 削波比例 ' + (e.clip * 100).toFixed(2) + "%｜s0 音量 " + e.rms + " dBFS</div>";
+    $("card").innerHTML = '<div class="h"><strong>目前事件 #' + e.i + "</strong>" + pill(e) + '<span class="mono">' + e.s.toFixed(3) + "–" + e.e.toFixed(3) + " 秒（" + e.d.toFixed(2) + " 秒）</span></div><div>" + cond + '</div><div class="note">s0 削波比例 ' + (e.clip * 100).toFixed(2) + "%｜冷卻 " + esc(e.cool) + "｜s0 音量 " + e.rms + " dBFS</div>";
   }
   function rowHTML(e) {
     return '<tr data-i="' + e.i + '"><td class="n">' + e.i + "</td><td>" + pill(e) + '</td><td class="n">' + e.s.toFixed(3) + '</td><td class="n">' + e.e.toFixed(3) + '</td><td class="n">' + e.d.toFixed(2) +
       '</td><td class="n">' + num(e.N) + '</td><td class="n">' + num(e.F) + '</td><td class="n">' + num(e.ap) + '</td><td class="n">' + num(e.ae) + '</td><td class="n">' + num(e.Z) + '</td><td class="n">' + num(e.D) +
-      "</td><td>" + e.dir + "</td><td>" + esc(e.tool) + '</td><td class="n">' + (e.clip * 100).toFixed(2) + '%</td><td class="n">' + e.rms + "</td></tr>";
+      "</td><td>" + e.dir + "</td><td>" + esc(e.tool) + '</td><td class="n">' + (e.clip * 100).toFixed(2) + '%</td><td>' + esc(e.cool) + '</td><td class="n">' + e.rms + "</td></tr>";
   }
   function keep(e) { return filter === "all" || (filter === "cut" && e.cut) || (filter === "l1" && e.cut && e.lab === 1) || (filter === "l2" && e.cut && e.lab === 2) || (filter === "l0" && e.cut && e.lab === 0) || (filter === "nc" && !e.cut); }
   function fillTable() {
