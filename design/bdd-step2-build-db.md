@@ -84,3 +84,42 @@
 
 ## 4. 不在本步範圍
 切分與測試集指定（第 3 步）；標籤 2 怎麼用（第 3 步）；BEATs 嵌入（第 4 步，權重未到）；acc、影片（未下載）。
+
+## 5. v2：多根目錄與正規化場次（2026-10-16，harness agent1-gemini，Generator G2）
+介面合約見 `AI_Builder_Cup_2026/harness/agent1-gemini/scenarios.md`。只加最小橋接，MSM 建庫行為不變。
+- 用法：`build_db.py <raw_dir> <out_dir> [--extra-raw DIR ...]`；每個根目錄都是 `<machine>/dataset<N>/`。
+- `plan_sessions()` 先走完全部根目錄、驗完才讀音檔與寫庫；任何錯誤 → `build_db: …`、exit 1、不產生任何庫。
+- 場次資料夾有 `session.json`（正規化輸出）→ 機台短名＝`machine_short`、場域＝`domain`、冷卻＝`coolant`、工件／備註取自 session.json；沒有 session.json 的 MSM 資料夾照舊查 SHORT／DOMAIN／COOLANT 字典。`dataset_summary.xlsx` 改為可缺。
+- session_id 仍是「短名＋SHA1(`<machine>/dataset<N>`) 前 6 碼」：MSM 雜湊輸入不變，正規化場次只換短名。
+- `session_source` 新增 `root`（場次所屬根目錄絕對路徑）；main.sqlite、labels.sqlite schema 不變。
+
+**DAT-001 MSM 建庫不變**：只給 MSM raw 時三庫逐列與改版前相同（source 排除 `root` 欄）。驗收：逐表 `SELECT * ORDER BY` 全欄 dump 後 diff。
+**DAT-002 session.json 覆蓋字典**：sessions.machine＝`machine_short`，domain／coolant 取自 session.json。
+**DAT-003 無 summary 也能建**：根目錄沒有 `dataset_summary.xlsx` 不報錯。
+**DAT-004 多根目錄**：sessions 列數＝各根目錄場次和；`session_source.root` 指向各自根目錄（check_db **S13**：root＋dir 都是存在的資料夾）。
+**DAT-005 數值欄空白**：label.csv 的 N／F／ap／ae／Z／D 空白 → NULL；Tool、direction、Workpiece 空白 → NULL（Tool 空白時 tool_defective 也是 NULL，不寫入 event_source）。
+**DAT-006 短名合法**：`machine_short` 不合 `^[a-z0-9]+$` → 錯誤訊息指名該 session.json 與欄位；`domain`、`coolant` 不在合約值內同樣報錯。
+**DAT-007 extra-raw 不存在**：建庫前報錯，不產生任何庫。
+**DAT-008 重複**：session_id 或 machine/dataset 在根目錄間重複 → 報錯並列出兩個資料夾（驗證頁以 machine＋dataset 取場次，兩者都必須唯一）。
+- 邊界：全部場次都沒有控制器檔時 context_ts 仍建同 14 欄的空表；全部刀具欄空白時 event_source 仍建表。
+
+## 6. v3：未標註切削側檔與數值防呆（2026-10-16，harness agent1-gemini Sprint 3，Generator G4）
+- 正規化場次資料夾可有 `<session_id>_unlabeled.csv`（`start,end`；只在有「切削中但標籤未定」區間時才有）。MSM 原始資料沒有此檔。
+- **DAT-009 未標註切削**：Given 側檔有一列 When 建庫 Then 該區間為 `events.cut_state=cutting`、`labels.label_std=-1`、`label_native=NULL`，工況與刀具欄 NULL（不編造）；計入 `sessions.n_cut`；與 label.csv 列一起排序後才算非切削空隙，所以這段**不會**被當成非切削。MSM 無側檔 → 三庫逐列與改版前相同（DAT-001 重跑 7/7 identical）。
+- **DAT-010 不可用數值**：label.csv 的 N／F／ap／ae／Z／D 為 `nan`、`inf`、`-inf`、`1e400` 或非數字（如 `abc`）→ NULL，不丟例外。
+- **DAT-011 根目錄內的非場次檔**：`<machine>/` 下只有名稱恰為 `dataset<N>` 的**資料夾**算場次（正規化根目錄另有 `_manifest/dataset_index.csv`，不得被當成場次）。
+- **DAT-012 session.json 格式錯**：不是合法 JSON 或不是 JSON 物件 → `build_db: <檔案路徑>: …`、exit 1、不產生任何庫。
+- check_db：多根目錄的庫，S1／S6／S8／S9 的 MSM 期望值只對 MSM 場次算；正規化場次另驗「切削事件數＝label.csv 列數＋側檔列數」（S1）；S8 依 `session_source.root` 找原始檔（不再需要 `<db>/../raw`）；S10 正規化場次的短名取自其 session.json（修 `KeyError: 'ctwa_mill'`）。
+- **S14 標籤值域**：切削事件 label_std ∈ {0,1,2,-1}；非切削全為 -1；label_std=-1 的切削事件數＝全部側檔列數，且不出現在 MSM 場次。
+
+## 7. v4：切削狀態未知與側檔驗證（2026-10-16，harness agent1-gemini Sprint 3 收尾，Generator G5；E2-6／E2-1／E2-2）
+- 側檔改為 `<session_id>_unlabeled.csv`（`start,end,cut_state`）；`cut_state` ∈ {`cutting`, `unknown`}，兩者標籤都是 -1。convert 對「標籤 -1 且 cut_state 為 cutting 或 unknown」的每個事件寫一列（含對映沒有規則的檔，以及 cut_state=unknown 卻給了 0／1／2 的規則——後者記 warning、以 unknown／-1 寫入）；`non_cutting` 照舊不寫，成為空隙。
+- **DAT-013 切削狀態未知**：Given 側檔一列 `cut_state=unknown` When 建庫 Then `events.cut_state='unknown'`（照抄，不改成 cutting 或 non_cutting）、`labels.label_std=-1`、工況與刀具 NULL；這段**不**被當成非切削空隙；計入 `sessions.n_cut`（n_cut＝cutting＋unknown，MSM 只有 cutting，DAT-001 不變）。
+- **DAT-014 側檔驗證**（`build_db.check_unlabeled`，在 `plan_sessions()` 內、讀音檔與寫庫之前；validate.py 同規則）：下列任一 → `build_db: <session_id> (<側檔路徑>) row <n>: …`、exit 1、不產生任何庫：
+  - start／end 非數字、`nan`、`inf`（`start/end must be finite numbers`）；
+  - start ≥ end；
+  - end 超過 s0 音長＋0.05 秒；
+  - cut_state 不是 cutting／unknown；
+  - 與 label.csv 任一列重疊，或與同一側檔的另一列重疊。
+- check_db：S1（正規化）改為「cutting 事件數＝label.csv 列數＋側檔 cutting 列數；unknown 事件數＝側檔 unknown 列數」（逐場）。
+- **S14**：cutting 的 label_std ∈ {0,1,2,-1}；unknown 全為 -1；non_cutting 全為 -1；cut_state 只有這三種；label=-1 的 cutting 數＝側檔 cutting 列數、unknown 數＝側檔 unknown 列數，兩者都不出現在 MSM 場次。

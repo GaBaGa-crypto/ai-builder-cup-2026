@@ -8,19 +8,19 @@
   --bg:#f1f3f1; --surface:#fff; --ink:#1c2321; --muted:#5a6561; --line:#d3d9d6; --accent:#2b5c7a;
   --ok:#2c7a4d; --ok-fill:rgba(44,122,77,.16); --bad:#ad3434; --bad-fill:rgba(173,52,52,.18); --idle-fill:rgba(120,129,125,.10);
   --two:#8a5a00; --two-fill:rgba(154,98,16,.16); --wave:#1c2321; --spindle:#2b5c7a; --sel:rgba(43,92,122,.10);
-  --b0:#1f5f8b; --b1:#2e8b57; --b2:#d07a12; --b3:#a23b72;
+  --b0:#1f5f8b; --b1:#2e8b57; --b2:#d07a12; --b3:#a23b72; --unl:#5b4b9a; --unl-fill:rgba(91,75,154,.17); --unk:#8a4f7d; --unk-fill:rgba(138,79,125,.15);
   --font-display:"Noto Serif TC","Songti TC",serif; --font-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif; --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg:#131716; --surface:#1b201f; --ink:#e4eae7; --muted:#9ba6a1; --line:#2c3431; --accent:#82b2d1;
   --ok:#6cc28f; --ok-fill:rgba(108,194,143,.18); --bad:#e77a7a; --bad-fill:rgba(231,122,122,.22); --idle-fill:rgba(141,151,146,.10);
   --two:#e2a84d; --two-fill:rgba(226,168,77,.18); --wave:#dfe6e2; --spindle:#82b2d1; --sel:rgba(130,178,209,.12);
-  --b0:#6fb0dd; --b1:#5cc48a; --b2:#f0a145; --b3:#e07ab5; color-scheme:dark; } }
+  --b0:#6fb0dd; --b1:#5cc48a; --b2:#f0a145; --b3:#e07ab5; --unl:#a99be0; --unl-fill:rgba(169,155,224,.20); --unk:#d79ac9; --unk-fill:rgba(215,154,201,.18); color-scheme:dark; } }
 :root[data-theme="dark"] {
   --bg:#131716; --surface:#1b201f; --ink:#e4eae7; --muted:#9ba6a1; --line:#2c3431; --accent:#82b2d1;
   --ok:#6cc28f; --ok-fill:rgba(108,194,143,.18); --bad:#e77a7a; --bad-fill:rgba(231,122,122,.22); --idle-fill:rgba(141,151,146,.10);
   --two:#e2a84d; --two-fill:rgba(226,168,77,.18); --wave:#dfe6e2; --spindle:#82b2d1; --sel:rgba(130,178,209,.12);
-  --b0:#6fb0dd; --b1:#5cc48a; --b2:#f0a145; --b3:#e07ab5; color-scheme:dark; }
+  --b0:#6fb0dd; --b1:#5cc48a; --b2:#f0a145; --b3:#e07ab5; --unl:#a99be0; --unl-fill:rgba(169,155,224,.20); --unk:#d79ac9; --unk-fill:rgba(215,154,201,.18); color-scheme:dark; }
 * { box-sizing:border-box; }
 body { background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:15px; line-height:1.6; padding-inline:16px; padding-block:24px 56px; }
 .wrap { max-width:1200px; margin:0 auto; display:grid; gap:22px; }
@@ -68,6 +68,7 @@ audio { width:min(320px,100%); height:32px; }
 .card .h { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; }
 .pill { display:inline-flex; align-items:center; gap:5px; font-size:.78rem; font-weight:500; padding:1px 9px; border-radius:999px; white-space:nowrap; }
 .p0 { color:var(--ok); background:var(--ok-fill); } .p1 { color:var(--bad); background:var(--bad-fill); } .p2 { color:var(--two); background:var(--two-fill); } .pn { color:var(--muted); background:var(--idle-fill); }
+.pu { color:var(--unl); background:var(--unl-fill); } .pk { color:var(--unk); background:var(--unk-fill); }
 .filters { display:flex; flex-wrap:wrap; gap:4px; }
 .tablewrap { overflow:auto; max-height:520px; border:1px solid var(--line); border-radius:4px; background:var(--surface); }
 table { border-collapse:collapse; width:100%; min-width:900px; font-size:.85rem; }
@@ -99,8 +100,8 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   </header>
 
   <section class="how" aria-label="目前怎麼切的">
-    <div><strong>切削事件</strong><span>直接照抄 label.csv 每一列的起訖秒數，沒有自己切。顏色依該列的標籤：綠＝標籤 0 正常，紅＝標籤 1 異常，橙＝標籤 2 缺陷刀但切削正常。</span></div>
-    <div><strong>非切削事件</strong><span>相鄰兩列之間、第一列之前、最後一列之後的空隙，長度至少 0.5 秒才成立，灰色。</span></div>
+    <div><strong>切削事件</strong><span>直接照抄 label.csv 每一列的起訖秒數，沒有自己切。顏色依該列的標籤：綠＝標籤 0 正常，紅＝標籤 1 異常，橙＝標籤 2 缺陷刀但切削正常；紫＝未標註切削（正規化來源確定在切削、但標籤未定，記 -1，取自 _unlabeled.csv）；紫紅＝切削狀態未知（來源沒說這段是否在切削，記 -1，同樣取自 _unlabeled.csv，不當成非切削）。</span></div>
+    <div><strong>非切削事件</strong><span>相鄰兩段切削（含未標註切削與切削狀態未知）之間、第一段之前、最後一段之後的空隙，長度至少 0.5 秒才成立，灰色。</span></div>
     <div><strong>時間對齊</strong><span id="aligntext"></span></div>
     <div><strong>怎麼驗證</strong><span>按播放聽，看顏色邊界是否落在聲音變化處；也可對照下方主軸轉速。點波形任一處跳播，點下表任一列播放該段。</span></div>
   </section>
@@ -120,6 +121,8 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
     <span><span class="sw" style="background:var(--ok-fill);border-color:var(--ok)"></span>標籤 0 正常切削</span>
     <span><span class="sw" style="background:var(--bad-fill);border-color:var(--bad)"></span>標籤 1 異常（應停機）</span>
     <span><span class="sw" style="background:var(--two-fill);border-color:var(--two)"></span>標籤 2 缺陷刀但切削正常</span>
+    <span><span class="sw" style="background:var(--unl-fill);border-color:var(--unl)"></span>未標註切削（標籤未定，-1）</span>
+    <span><span class="sw" style="background:var(--unk-fill);border-color:var(--unk)"></span>切削狀態未知（-1）</span>
     <span><span class="sw" style="background:var(--idle-fill)"></span>非切削</span>
     <span><span class="sw" style="background:var(--accent);height:3px"></span>播放位置</span>
     <span>波形顏色＝所在事件；虛線＝滿刻度（波形碰到即削波）</span>
@@ -147,7 +150,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
       <div class="filters" id="filters">
         <button type="button" data-f="all" aria-pressed="true">全部</button><button type="button" data-f="cut" aria-pressed="false">切削</button>
         <button type="button" data-f="l1" aria-pressed="false">標籤 1</button><button type="button" data-f="l2" aria-pressed="false">標籤 2</button>
-        <button type="button" data-f="l0" aria-pressed="false">標籤 0</button><button type="button" data-f="nc" aria-pressed="false">非切削</button>
+        <button type="button" data-f="l0" aria-pressed="false">標籤 0</button><button type="button" data-f="lu" aria-pressed="false" id="flu" hidden>未標註切削</button><button type="button" data-f="lk" aria-pressed="false" id="flk" hidden>切削狀態未知</button><button type="button" data-f="nc" aria-pressed="false">非切削</button>
       </div>
     </div>
     <div class="tablewrap"><table><thead><tr><th>#</th><th>類別</th><th>起秒</th><th>迄秒</th><th>長度秒</th><th>N rpm</th><th>F mm/s</th><th>ap mm</th><th>ae mm</th><th>Z</th><th>D mm</th><th>方向</th><th>刀具</th><th>s0 削波比例</th><th>冷卻</th><th>s0 音量 dBFS</th></tr></thead><tbody id="tb"></tbody></table></div>
@@ -197,12 +200,15 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
     $("subtitle").textContent = "材料 " + I.material + "｜刀具 " + I.tools + "｜資料集備註：" + I.remark;
     var meta = [["場次", I.sid], ["長度", (dur / 60).toFixed(1) + " 分（" + dur.toFixed(1) + " 秒）"],
       ["標籤 0 路徑", I.sealed ? "封存" : I.n0], ["標籤 1 路徑", I.sealed ? "封存" : I.n1], ["標籤 2 路徑", I.sealed ? "封存" : I.n2], ["非切削段", I.sealed ? "封存" : I.nnc]];
+    if (!I.sealed && I.n_unlabeled) meta.splice(5, 0, [I.n_unknown ? "未標註（-1）" : "未標註切削", I.n_unlabeled + (I.n_unknown ? "（含切削狀態未知 " + I.n_unknown + "）" : "")]);  // 只有正規化來源棄權或未說明切削狀態的場次才有
     $("meta").innerHTML = meta.map(function (m) { return '<div><span class="label">' + m[0] + '</span><span class="v">' + esc(m[1]) + "</span></div>"; }).join("");
     var A = I.align;
-    $("aligntext").textContent = "聲音與控制器檔名時間戳相同（名目偏移 0）。第 2 步以主軸" + (A.anchor === "spindle_speed_rpm" ? "轉速" : "負載") + "估偏移：前半 " + fmt(A.head, 1) + " 秒、後半 " + fmt(A.tail, 1) + " 秒，信心 " + fmt(A.conf, 2) + "（只記錄，未修正時間軸）。";
+    $("aligntext").textContent = A.anchor == null ? "無控制器資料（此場次沒有控制器檔，不估時間偏移；主軸轉速圖為空）。"  // 正規化來源多半沒有 MTConnect
+      : "聲音與控制器檔名時間戳相同（名目偏移 0）。第 2 步以主軸" + (A.anchor === "spindle_speed_rpm" ? "轉速" : "負載") + "估偏移：前半 " + fmt(A.head, 1) + " 秒、後半 " + fmt(A.tail, 1) + " 秒，信心 " + fmt(A.conf, 2) + "（只記錄，未修正時間軸）。";
     $("sealednote").hidden = !I.sealed;
     $("sealednote").textContent = "這是 VF-10 測試場次，依 2026-10-14 預先登記封存：只顯示聲音、波形與主軸轉速，不顯示切段與標籤。要看切段，需由你決定以 --unseal-vf10 重新啟動模組（會記一筆偏離）。";
     document.querySelectorAll("#filters button").forEach(function (b) { b.disabled = I.sealed; });
+    $("flu").hidden = !EV.some(isUnl); $("flk").hidden = !EV.some(isUnk);
     var lossy = /\.mp3$/.test(CH[chan].url);
     $("audionote").textContent = "削波比例＝滿刻度樣本占比（s0）。" + (lossy ? "MP3 約 160 kbps 只供試聽；" : "播放的是原始 WAV（48 kHz、16-bit，無壓縮）；") + "波形由原始 WAV 計算。";
     $("chans").innerHTML = chNames.map(function (c) { return '<button type="button" data-ch="' + c + '" aria-pressed="false" title="' + esc(CH[c].name) + '">' + c + "</button>"; }).join("");
@@ -224,12 +230,15 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   audio.addEventListener("loadedmetadata", function () { if (pending) { var p = pending; pending = null; audio.currentTime = p.t; if (p.play) audio.play().catch(function () {}); } });
 
   // ---------- drawing ----------
-  function readColors() { var s = getComputedStyle(document.documentElement); ["ink", "muted", "line", "accent", "ok", "ok-fill", "bad", "bad-fill", "two", "two-fill", "idle-fill", "wave", "spindle", "surface", "sel", "b0", "b1", "b2", "b3"].forEach(function (k) { C[k] = s.getPropertyValue("--" + k).trim(); }); }
+  function readColors() { var s = getComputedStyle(document.documentElement); ["ink", "muted", "line", "accent", "ok", "ok-fill", "bad", "bad-fill", "two", "two-fill", "idle-fill", "wave", "spindle", "surface", "sel", "b0", "b1", "b2", "b3", "unl", "unl-fill", "unk", "unk-fill"].forEach(function (k) { C[k] = s.getPropertyValue("--" + k).trim(); }); }
   readColors();
   try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { readColors(); render(); }); } catch (e) {}
   function setup(cv) { var r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d)); var g = cv.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0); return { g: g, w: r.width, h: r.height }; }
-  function evFill(e) { return !e.cut ? C["idle-fill"] : e.lab === 1 ? C["bad-fill"] : e.lab === 2 ? C["two-fill"] : C["ok-fill"]; }
-  function evEdge(e) { return !e.cut ? C.muted : e.lab === 1 ? C.bad : e.lab === 2 ? C.two : C.ok; }
+  function isUnl(e) { return e.cut && e.lab === -1; }  // 未標註切削：切削中、標籤未定（不是標籤 0，也不是非切削）
+  function isUnk(e) { return !!e.unknown; }  // 切削狀態未知：cut=false 但不是非切削，標籤 -1
+  function isNc(e) { return !e.cut && !isUnk(e); }
+  function evFill(e) { return isUnk(e) ? C["unk-fill"] : !e.cut ? C["idle-fill"] : isUnl(e) ? C["unl-fill"] : e.lab === 1 ? C["bad-fill"] : e.lab === 2 ? C["two-fill"] : C["ok-fill"]; }
+  function evEdge(e) { return isUnk(e) ? C.unk : !e.cut ? C.muted : isUnl(e) ? C.unl : e.lab === 1 ? C.bad : e.lab === 2 ? C.two : C.ok; }
   function findEvent(t) { var lo = 0, hi = EV.length - 1; while (lo <= hi) { var m = (lo + hi) >> 1; if (EV[m].e <= t) lo = m + 1; else if (EV[m].s > t) hi = m - 1; else return EV[m]; } return null; }
   function drawEvents(o, v0, v1, top, h, labels) {
     var k = o.w / (v1 - v0);
@@ -237,7 +246,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
       if (e.e < v0 || e.s > v1) return;
       var x0 = (e.s - v0) * k, x1 = (e.e - v0) * k;
       o.g.fillStyle = evFill(e); o.g.fillRect(x0, top, x1 - x0, h);
-      if (e.cut) { o.g.fillStyle = evEdge(e); o.g.fillRect(x0, top, x1 - x0, 3); }
+      if (e.cut || isUnk(e)) { o.g.fillStyle = evEdge(e); o.g.fillRect(x0, top, x1 - x0, 3); }
       if (labels && x1 - x0 > 26) { o.g.fillStyle = C.muted; o.g.font = "11px " + getComputedStyle(document.body).fontFamily; o.g.fillText("#" + e.i, x0 + 3, top + 15); }
       if (selected && selected.i === e.i) { o.g.strokeStyle = C.accent; o.g.lineWidth = 2; o.g.strokeRect(x0 + 1, top + 1, x1 - x0 - 2, h - 2); }
     });
@@ -320,7 +329,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
       if (!started) { sp.g.moveTo(x0, y); started = true; } else sp.g.lineTo(x0, y); sp.g.lineTo(x1, y);
     }
     sp.g.stroke(); playhead(sp, view[0], view[1]);
-    $("spinfo").textContent = "0–" + Math.round(vmax) + " rpm";
+    $("spinfo").textContent = SP.t.length ? "0–" + Math.round(vmax) + " rpm" : "無控制器資料";
     $("wininfo").textContent = view[0].toFixed(2) + "–" + view[1].toFixed(2) + " 秒（" + (view[1] - view[0]).toFixed(1) + " 秒寬）";
     $("ovinfo").textContent = dur.toFixed(1) + " 秒";
   }
@@ -354,11 +363,11 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   function loop() { if (audio.paused) return; var t = audio.currentTime, w = view[1] - view[0]; if ($("follow").checked && w < dur && (t > view[1] - w * 0.05 || t < view[0])) setView(t - w * 0.1, w); else render(); tick(); requestAnimationFrame(loop); }
 
   // ---------- card & table ----------
-  function pill(e) { return !e.cut ? '<span class="pill pn">非切削</span>' : e.lab === 1 ? '<span class="pill p1">標籤 1 異常</span>' : e.lab === 2 ? '<span class="pill p2">標籤 2 缺陷刀</span>' : '<span class="pill p0">標籤 0 正常</span>'; }
+  function pill(e) { return isUnk(e) ? '<span class="pill pk">切削狀態未知</span>' : !e.cut ? '<span class="pill pn">非切削</span>' : isUnl(e) ? '<span class="pill pu">未標註切削</span>' : e.lab === 1 ? '<span class="pill p1">標籤 1 異常</span>' : e.lab === 2 ? '<span class="pill p2">標籤 2 缺陷刀</span>' : '<span class="pill p0">標籤 0 正常</span>'; }
   function showCard(e) {
     if (I.sealed) { $("card").innerHTML = '<div class="h"><strong>切段封存</strong><span class="note">此場次不顯示事件；可以聽聲音、看波形與主軸轉速。</span></div>'; return; }
     if (!e) { $("card").innerHTML = '<div class="h"><strong>目前位置不在任何事件內</strong><span class="note">（小於 0.5 秒的空隙不算事件）</span></div>'; return; }
-    var cond = e.cut ? "N " + num(e.N) + " rpm｜F " + num(e.F) + " mm/s｜ap " + num(e.ap) + " mm｜ae " + num(e.ae) + " mm｜Z " + num(e.Z) + "｜D " + num(e.D) + " mm｜" + e.dir + "｜刀具 " + esc(e.tool) : "非切削段沒有工況";
+    var cond = isUnk(e) ? "來源沒說明這段是否在切削（切削狀態未知，標籤 -1，待人判定）；沒有工況" : (isUnl(e) ? "來源確定在切削、標籤未定（-1，待人判定）｜" : "") + (e.cut ? "N " + num(e.N) + " rpm｜F " + num(e.F) + " mm/s｜ap " + num(e.ap) + " mm｜ae " + num(e.ae) + " mm｜Z " + num(e.Z) + "｜D " + num(e.D) + " mm｜" + e.dir + "｜刀具 " + esc(e.tool) : "非切削段沒有工況");
     $("card").innerHTML = '<div class="h"><strong>目前事件 #' + e.i + "</strong>" + pill(e) + '<span class="mono">' + e.s.toFixed(3) + "–" + e.e.toFixed(3) + " 秒（" + e.d.toFixed(2) + " 秒）</span></div><div>" + cond + '</div><div class="note">s0 削波比例 ' + (e.clip * 100).toFixed(2) + "%｜冷卻 " + esc(e.cool) + "｜s0 音量 " + e.rms + " dBFS</div>";
   }
   function rowHTML(e) {
@@ -366,7 +375,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
       '</td><td class="n">' + num(e.N) + '</td><td class="n">' + num(e.F) + '</td><td class="n">' + num(e.ap) + '</td><td class="n">' + num(e.ae) + '</td><td class="n">' + num(e.Z) + '</td><td class="n">' + num(e.D) +
       "</td><td>" + e.dir + "</td><td>" + esc(e.tool) + '</td><td class="n">' + (e.clip * 100).toFixed(2) + '%</td><td>' + esc(e.cool) + '</td><td class="n">' + e.rms + "</td></tr>";
   }
-  function keep(e) { return filter === "all" || (filter === "cut" && e.cut) || (filter === "l1" && e.cut && e.lab === 1) || (filter === "l2" && e.cut && e.lab === 2) || (filter === "l0" && e.cut && e.lab === 0) || (filter === "nc" && !e.cut); }
+  function keep(e) { return filter === "all" || (filter === "cut" && e.cut) || (filter === "l1" && e.cut && e.lab === 1) || (filter === "l2" && e.cut && e.lab === 2) || (filter === "l0" && e.cut && e.lab === 0) || (filter === "lu" && isUnl(e)) || (filter === "lk" && isUnk(e)) || (filter === "nc" && isNc(e)); }
   function fillTable() {
     var rows = EV.filter(keep);
     $("tb").innerHTML = I.sealed ? '<tr><td class="empty" colspan="15">此場次切段封存，不列事件。</td></tr>'
@@ -388,10 +397,12 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   $("picker").hidden = false;
   function kindText(s) {
     if (s.sealed) return "VF-10 測試場次（切段封存）";
-    var k = (s.n1 ? "標籤1" : "") + (s.n1 && s.n2 ? "＋" : "") + (s.n2 ? "標籤2" : "");
-    return k ? k + (s.n0 ? " 混合" : " 全段") : "全部正常";
+    var nu = s.n_unlabeled || 0, k = (s.n1 ? "標籤1" : "") + (s.n1 && s.n2 ? "＋" : "") + (s.n2 ? "標籤2" : "");
+    if (!s.n0 && !s.n1 && !s.n2 && !nu) return "無切削事件";  // 只有非切削事件（例：機台空轉檔），不是「全部正常」
+    if (!k) return nu ? (s.n0 ? "標籤0＋未標註" : (s.n_unknown || 0) >= nu ? "切削狀態未知" : "未標註切削") : "全部正常";
+    return k + (s.n0 ? " 混合" : " 全段") + (nu ? "＋未標註" : "");
   }
-  function optText(s) { return "ds" + (s.dataset < 10 ? "0" : "") + s.dataset + " · " + kindText(s) + (s.sealed ? "" : " · " + s.n0 + "／" + s.n1 + "／" + s.n2) + " · " + (s.dur / 60).toFixed(1) + " 分" + (s.remark ? " · " + s.remark : ""); }
+  function optText(s) { return "ds" + (s.dataset < 10 ? "0" : "") + s.dataset + " · " + kindText(s) + (s.sealed ? "" : " · " + s.n0 + "／" + s.n1 + "／" + s.n2 + (s.n_unlabeled ? "／未標註 " + s.n_unlabeled : "")) + " · " + (s.dur / 60).toFixed(1) + " 分" + (s.remark ? " · " + s.remark : ""); }
   function listFor(m) { return SESS.filter(function (s) { return s.machine_key === m && (!$("onlyAnom").checked || s.sealed || s.n1 || s.n2); }); }
   function fillDatasets(m, keepDs) {
     var L = listFor(m);
@@ -416,7 +427,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   $("next").addEventListener("click", function () { step(1); });
   var machines = [];
   function openHash() {
-    var h = /^#([a-z0-9_]+)-(\d+)$/.exec(location.hash), m = h ? h[1] : "imi_vm20i", ds = h ? +h[2] : 6;
+    var h = /^#(.+)-(\d+)$/.exec(location.hash), m = h ? decodeURIComponent(h[1]) : "imi_vm20i", ds = h ? +h[2] : 6;  // 機台資料夾名可來自正規化輸出
     if (machines.indexOf(m) < 0) m = machines[0];
     if (I && I.machine_key === m && I.dataset === ds) return;
     $("pm").value = m; fillDatasets(m, ds);

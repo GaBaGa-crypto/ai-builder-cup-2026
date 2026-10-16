@@ -22,3 +22,12 @@ __pycache__/
 *.xlsx
 *.pdf
 *.png
+# 代理人程式（agent/）與入口腳本（scripts/）；資料與產出一律不追蹤
+!/agent/
+!/scripts/
+/agent/work/
+*.parquet
+*.flac
+*.mp4
+*.jsonl
+.env

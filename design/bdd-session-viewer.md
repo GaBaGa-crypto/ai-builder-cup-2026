@@ -47,3 +47,27 @@
 - **S13**：VM20i、VMX30Ui 每個事件冷卻＝濕切；VF-10 參照場次（ds2、7、12）＝乾切；表頭順序為「… s0 削波比例｜冷卻｜s0 音量 dBFS」。
 - **S14**：封存場次仍不送任何事件（冷卻欄不會讓封存場次多出事件）。
 - 積木：`events.coolant` 既有欄位複用；只改 `build_payload()` 與範本，靜態匯出與雲端資料包自動帶到（同一函式、同一範本）。
+
+## v5：正規化場次（--extra-raw 建的庫）也能看（2026-10-16，harness agent1-gemini，Generator G2）
+- 不改頁面結構、不改 payload 欄位；MSM 場次的 `/api/sessions`、`/api/session` 回應與改版前逐位元相同。
+- 音檔與 session.json 依 `session_source.root` 找；舊庫沒有 root 欄、或 root 不存在（庫搬到別台）時沿用 `--msm` 的 raw。`session_listing()` 回傳的 `dir` 在有 root 時是絕對路徑，`wav_paths(raw, r.dir)` 的既有呼叫者（模組、雲端匯出）不必改。
+- **UI-001**：清單含 session.json `machine_name` 的機台（MSM 三台在前，其他依資料夾名排後）。
+- **UI-002／UI-003**：事件表工況空欄顯示空字串；只有表頭的 label.csv＝1 個非切削事件；清單計數 0／0／0。
+- **UI-004**：沒有控制器檔 → 主軸轉速圖為空、右上顯示「無控制器資料」，時間對齊列顯示「無控制器資料（…）」。
+- **UI-005**：session.json `mic_type` 為 unknown 或空 → 聲道名「s0 麥克風（來源未註明）」；有值 → 「s0 麥克風（<mic_type>）」；MSM 照舊。
+- **UI-006**：封存仍只看 `tmf_vf10` 非參照場次；正規化場次不封存。
+- **UI-007**：冷卻 wet／dry → 濕切／乾切，其他（unknown）→「未註明」。
+- **UI-008**：`/audio/<id>/<ch>.wav` 仍只接受庫內登記的 session_id × s0/s1/s2（正規化場次的 id 也是 `短名_6碼`）；其他回 404。
+
+## v6：未標註切削（2026-10-16，harness agent1-gemini Sprint 3，Generator G4）
+- 第四種顏色「未標註切削」（CSS token `--unl`／`--unl-fill`，亮暗兩版）：事件為切削但 `label_std=-1`（正規化來源棄權）。波形上色、四頻帶圖與總覽的事件底色、圖例、事件表 pill、目前事件卡片都用它；卡片另說明「來源確定在切削、標籤未定（-1，待人判定）」。事件表篩選多一顆「未標註切削」，只在該場有這種事件時出現。
+- payload：這種事件多一個 `unlabeled: true`；`info.n_unlabeled` 與清單的 `n_unlabeled` 只在數量 > 0 時才送。其他事件與 MSM 場次的鍵集合不變（ds6 payload 與改版前逐位元相同；MSM 69 場清單相同）。n0／n1／n2 語意不變（只數 0／1／2）。封存場次照舊什麼都不送。
+- **UI-009**：Given 只有未標註切削的場次 When 開頁 Then 事件表 pill「未標註切削」、卡片同；清單「未標註切削 · 0／0／0／未標註 1」。
+- **UI-010**：Given 沒有任何切削事件的場次（例：CTWA BASE 空轉檔，只有 1 個非切削事件）When 看清單 Then 顯示「無切削事件」，不再顯示「全部正常」。
+- **UI-011**：label.csv 數值曾為 `inf` 的舊庫，payload 該欄送 null（不產生非法 JSON）。
+
+## v7：切削狀態未知（2026-10-16，harness agent1-gemini Sprint 3 收尾，Generator G5；E2-6）
+- 第五種顏色「切削狀態未知」（CSS token `--unk`／`--unk-fill`，紫紅，亮暗兩版；與非切削灰、未標註切削紫可分）：事件 `cut_state=unknown`（標籤必為 -1）。波形上色、事件底色與頂邊、圖例、事件表 pill（`.pk`）、卡片都用它；卡片說明「來源沒說明這段是否在切削（切削狀態未知，標籤 -1，待人判定）；沒有工況」。篩選鈕「切削狀態未知」只在該場有這種事件時出現；「非切削」篩選不含它，「切削」「標籤 0」也不含它。
+- payload：這種事件 `cut=false`、`lab=-1`，另帶 `unlabeled: true`、`unknown: true`；`info.n_unlabeled` 把它算進去（＝cutting 且 -1＋unknown），另送 `info.n_unknown`（> 0 才送）。清單同：`n_unlabeled` 含 unknown、`n_unknown` > 0 才送；`n0+n1+n2+n_unlabeled＝sessions.n_cut`。MSM 場次鍵集不變（ds6 payload 逐位元同、69 場清單同）；封存場次照舊什麼都不送。
+- **UI-012**：Given 整場只有一段 cut_state=unknown When 開頁 Then 事件表 pill「切削狀態未知」（不是「非切削」、不是「標籤 0 正常」），meta「未標註（-1）1（含切削狀態未知 1）」；清單「切削狀態未知 · 0／0／0／未標註 1」。
+- **UI-013**：Given 標籤 0 切削中夾一段 unknown When 篩選「非切削」Then 不列 unknown；篩選「切削狀態未知」Then 只列 unknown。

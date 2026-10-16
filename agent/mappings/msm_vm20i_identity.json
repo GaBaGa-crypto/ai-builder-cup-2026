@@ -1,0 +1,19 @@
+{
+ "mapping_version": "0.1",
+ "source_id": "msm",
+ "source_name": "MSM dataset - imi_vm20i (Hurco VM20i, lab)",
+ "url": "https://doi.org/10.34740/kaggle/ds/8392825",
+ "license": "CC BY 4.0",
+ "citation": "Kim et al., Multi-sensor and MTConnect dataset of metal cutting anomaly in milling from laboratory and industry settings, Scientific Data 13:945 (2026), doi:10.1038/s41597-026-07255-7",
+ "machine": {"machine_id": "imi_vm20i", "model": "Hurco VM20i", "process": "milling", "field": "lab", "coolant": "wet"},
+ "session_rule": {"grouping": "msm_session", "audio_glob": "imi_vm20i/dataset*/*_s0.wav"},
+ "audio": {"channel": "first", "mic_type": "airborne", "gain": "none"},
+ "label_source": "msm_label_csv",
+ "label_pattern": null,
+ "label_rules": [],
+ "event_granularity": "interval",
+ "fields": [],
+ "unresolved": [],
+ "approved_by": "reference (identity mapping)",
+ "approved_at": null
+}

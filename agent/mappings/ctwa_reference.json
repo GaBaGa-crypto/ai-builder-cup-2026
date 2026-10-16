@@ -1,0 +1,193 @@
+{
+ "mapping_version": "0.4",
+ "source_id": "ctwa",
+ "source_name": "Cutting Tool Wear Audio Dataset (Kaggle, nachiketsoni)",
+ "url": "https://www.kaggle.com/datasets/nachiketsoni/cutting-tool-wear-audio-dataset",
+ "license": "Apache 2.0",
+ "citation": "N. Soni, A. Kumar and H. Patel, Acoustic Analysis of Cutting Tool Vibrations of Machines for Anomaly Detection and Predictive Maintenance, IEEE R10-HTC 2023, doi:10.1109/R10-HTC57504.2023.10461855",
+ "machine": {
+  "machine_id": "ctwa_mill",
+  "display_name": "CTWA mill",
+  "model": null,
+  "process": "milling",
+  "field": "unknown",
+  "coolant": "unknown"
+ },
+ "session_rule": {
+  "grouping": "per_file",
+  "audio_glob": "SegmentedData/*/*.wav"
+ },
+ "audio": {
+  "channel": "mean",
+  "mic_type": "unknown",
+  "gain": "none"
+ },
+ "label_source": "path_regex",
+ "label_pattern": "SegmentedData/(?P<v>[A-Z]+)\\d{3}/",
+ "label_rules": [
+  {
+   "native": "BASE",
+   "msm_label": -1,
+   "cut_state": "non_cutting",
+   "anomaly_type": null,
+   "confidence": "exact",
+   "rationale": "Dataset description: 'base machine sound files' = machine running without cutting."
+  },
+  {
+   "native": "FRESH",
+   "msm_label": 0,
+   "cut_state": "cutting",
+   "anomaly_type": null,
+   "confidence": "expert_rule",
+   "rationale": "Folder FRESH = sharp tool cutting; treated as stable normal cutting."
+  },
+  {
+   "native": "MODERATE",
+   "msm_label": 2,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_wear",
+   "confidence": "expert_rule",
+   "rationale": "Moderately blunt tool while the cut itself is acceptable: MSM label 2 (tool defect, cutting normal). Decision by project owner, 2026-10-14."
+  },
+  {
+   "native": "BROKEN",
+   "msm_label": 1,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_breakage",
+   "confidence": "expert_rule",
+   "rationale": "Listening review: cutting continued after the tool broke, which should have been stopped: MSM label 1. Breakage onset to be marked as an interval label from the spectrogram review. Decision by project owner, 2026-10-14."
+  }
+ ],
+ "event_granularity": "file",
+ "fields": [
+  {
+   "msm_field": "N",
+   "source": "path_regex",
+   "pattern": "RPM(?P<v>\\d{3})",
+   "unit_in": "rpm",
+   "factor": 1.0,
+   "evidence": "File names RPM520... / RPM635...; description: 'at 2 different RPMs - 520 and 635'."
+  },
+  {
+   "msm_field": "D",
+   "source": "constant",
+   "value": 16,
+   "unit_in": "mm",
+   "factor": 1.0,
+   "evidence": "Description: 'end-mill cutters with a diameter of 16mm'."
+  },
+  {
+   "msm_field": "Workpiece",
+   "source": "constant",
+   "value": "mild steel",
+   "factor": 1.0,
+   "evidence": "Description: 'The workpiece used was of mild-steel'."
+  },
+  {
+   "msm_field": "Tool",
+   "source": "unknown",
+   "factor": 1.0,
+   "evidence": "The letter in the file name (A/B/C) encodes the wear state, so it would leak the label; kept in provenance only."
+  },
+  {
+   "msm_field": "Z",
+   "source": "unknown",
+   "factor": 1.0,
+   "evidence": "Not stated."
+  },
+  {
+   "msm_field": "ap",
+   "source": "unknown",
+   "factor": 1.0,
+   "evidence": "Not stated."
+  },
+  {
+   "msm_field": "ae",
+   "source": "unknown",
+   "factor": 1.0,
+   "evidence": "Not stated."
+  },
+  {
+   "msm_field": "F",
+   "source": "unknown",
+   "factor": 1.0,
+   "evidence": "Not stated."
+  },
+  {
+   "msm_field": "direction",
+   "source": "unknown",
+   "factor": 1.0,
+   "evidence": "Not stated."
+  }
+ ],
+ "unresolved": [
+  "Breakage onset is an expert estimate from one recording (BROKEN520 C0005, 1.0-1.55 s); a listening check by the project owner is recommended. An earlier high-frequency burst at C0004 0.5-3 s may be a precursor (chip or crack); kept as label 2.",
+  "BROKEN635 shows no breakage event: assumed cut with the already broken tool (label 1 throughout). Hypothesis, NOT applied: C0001-C0012 may have run at 520 rpm (envelope peak 8.7 Hz vs 10.5 Hz from C0013). Blind test 2026-10-14 (verification/2026-10-14_band_claims) showed the envelope peak is not a reliable rpm estimator on MSM, so N keeps the file-name value until harmonic/tooth-pass checks confirm it.",
+  "Microphone type and position are not stated; mic_type kept 'unknown'.",
+  "Machine model, feed, depth and width of cut are not stated."
+ ],
+ "approved_by": null,
+ "approved_at": null,
+ "interval_labels": [
+  {
+   "path": "SegmentedData/BROKEN520/RPM520C0001.wav",
+   "start_s": 0.0,
+   "end_s": null,
+   "msm_label": 2,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_wear_pre_break",
+   "confidence": "expert_rule",
+   "evidence": "Spectrogram review 2026-10-14: recording before the breakage onset in RPM520C0005 (envelope dominated by 17 Hz = 2x rev). Tool worn but cut continuing: label 2 per project owner."
+  },
+  {
+   "path": "SegmentedData/BROKEN520/RPM520C0002.wav",
+   "start_s": 0.0,
+   "end_s": null,
+   "msm_label": 2,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_wear_pre_break",
+   "confidence": "expert_rule",
+   "evidence": "Spectrogram review 2026-10-14: recording before the breakage onset in RPM520C0005 (envelope dominated by 17 Hz = 2x rev). Tool worn but cut continuing: label 2 per project owner."
+  },
+  {
+   "path": "SegmentedData/BROKEN520/RPM520C0003.wav",
+   "start_s": 0.0,
+   "end_s": null,
+   "msm_label": 2,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_wear_pre_break",
+   "confidence": "expert_rule",
+   "evidence": "Spectrogram review 2026-10-14: recording before the breakage onset in RPM520C0005 (envelope dominated by 17 Hz = 2x rev). Tool worn but cut continuing: label 2 per project owner."
+  },
+  {
+   "path": "SegmentedData/BROKEN520/RPM520C0004.wav",
+   "start_s": 0.0,
+   "end_s": null,
+   "msm_label": 2,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_wear_pre_break",
+   "confidence": "expert_rule",
+   "evidence": "Spectrogram review 2026-10-14: recording before the breakage onset in RPM520C0005 (envelope dominated by 17 Hz = 2x rev). Tool worn but cut continuing: label 2 per project owner."
+  },
+  {
+   "path": "SegmentedData/BROKEN520/RPM520C0005.wav",
+   "start_s": 0.0,
+   "end_s": 1.0,
+   "msm_label": 2,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_wear_pre_break",
+   "confidence": "expert_rule",
+   "evidence": "Spectrogram review 2026-10-14: recording before the breakage onset in RPM520C0005 (envelope dominated by 17 Hz = 2x rev). Tool worn but cut continuing: label 2 per project owner."
+  },
+  {
+   "path": "SegmentedData/BROKEN520/RPM520C0005.wav",
+   "start_s": 1.0,
+   "end_s": 1.55,
+   "msm_label": 1,
+   "cut_state": "cutting",
+   "anomaly_type": "tool_breakage_onset",
+   "confidence": "expert_rule",
+   "evidence": "Spectrogram review 2026-10-14 (proto/scripts/ctwa_zoom.py, 50 ms frames): energy above 4 kHz falls 25 dB from 1.0 s to 1.45 s, broadband transient at 1.52 s; afterwards 50-600 Hz stays ~18 dB lower and later recordings switch to a once-per-revolution (8.7 Hz) envelope with impact harmonics (C0007). Rest of the file and all later BROKEN files keep the file-level label 1."
+  }
+ ]
+}

@@ -1,0 +1,94 @@
+{
+  "spec_version": "msm-norm-0.1",
+  "reference": {
+    "dataset": "Multi-Sensor and MTConnect (MSM) dataset of metal cutting anomaly in milling",
+    "dataset_doi": "10.34740/kaggle/ds/8392825",
+    "paper_doi": "10.1038/s41597-026-07255-7",
+    "dataset_license": "CC BY 4.0"
+  },
+  "audio": {
+    "file_pattern": "<session_id>_s0.wav",
+    "sample_rate": 48000,
+    "bit_depth": 16,
+    "subtype": "PCM_16",
+    "channels": 1,
+    "mic_role": "s0 = airborne microphone near the cutting zone",
+    "gain_policy": "Level is preserved (no loudness normalization in the stored file). Per-session relative normalization happens later at feature time, so that clipping and loudness stay measurable.",
+    "upsampled_policy": "If the native sample rate is below 48000 Hz the file is upsampled for format compatibility and flagged bandlimited=true; content above native Nyquist must not be treated as signal."
+  },
+  "label_csv": {
+    "file_name": "label.csv",
+    "row_meaning": "One row = one cutting segment (lab: one tool path; production: one annotated interval). Time not covered by any row is non-cutting, not normal.",
+    "columns": [
+      {"name": "start", "type": "float", "unit": "s", "required": true, "description": "Segment start, seconds from the session sync zero"},
+      {"name": "end", "type": "float", "unit": "s", "required": true, "description": "Segment end, seconds from the session sync zero"},
+      {"name": "label", "type": "int", "unit": "class", "required": true, "allowed": [0, 1, 2], "description": "0 normal stable cutting; 1 abnormal cutting that should be stopped; 2 pre-existing tool defect but cutting itself normal (a defective tool with anomalous cutting is 1)"},
+      {"name": "direction", "type": "str", "unit": "class", "required": false, "allowed": ["UP", "DOWN", ""], "description": "UP = up-milling (conventional), DOWN = down-milling (climb); empty if unknown"},
+      {"name": "N", "type": "float", "unit": "rpm", "required": false, "description": "Spindle speed"},
+      {"name": "ap", "type": "float", "unit": "mm", "required": false, "description": "Axial depth of cut"},
+      {"name": "ae", "type": "float", "unit": "mm", "required": false, "description": "Radial width of cut"},
+      {"name": "F", "type": "float", "unit": "mm/s", "required": false, "description": "Feed rate (note: mm per second, not mm/min)"},
+      {"name": "Z", "type": "int", "unit": "count", "required": false, "description": "Number of flutes"},
+      {"name": "D", "type": "float", "unit": "mm", "required": false, "description": "Tool diameter"},
+      {"name": "Tool", "type": "str", "unit": "code", "required": false, "description": "Tool code; a trailing * marks an intentionally defective tool. Provenance-sensitive: never a model input"},
+      {"name": "Workpiece", "type": "str", "unit": "class", "required": false, "description": "Workpiece material"}
+    ]
+  },
+  "label_values": {
+    "0": "normal",
+    "1": "abnormal_should_stop",
+    "2": "tool_defect_cutting_normal",
+    "-1": "not_mappable (kept only in the events table, never written to label.csv)"
+  },
+  "unlabeled_cutting_csv": {
+    "file_name": "<session_id>_unlabeled.csv",
+    "columns": ["start", "end", "cut_state"],
+    "written_when": "Only when the session has at least one event with msm_label=-1 whose cut_state is cutting (the source or the approver could not decide the label) or unknown (no label rule, or a rule saying the cut state is unknown). Absent otherwise, so MSM-layout sessions never have it. cut_state=non_cutting never gets a row (it stays a gap).",
+    "meaning": "Each row is a span without an MSM label. It is not a label.csv row (label.csv keeps labels 0/1/2 only) and it is not non-cutting time. build_db.py stores cut_state exactly as given (cutting or unknown) with labels.label_std=-1 and does not count it as a non-cutting gap.",
+    "validation": "start/end finite numbers, start < end, end <= audio duration + 0.05 s, cut_state in {cutting, unknown}, no overlap with a label.csv row or another sidecar row; build_db.py and validate.py both reject a violating file (build_db writes no database).",
+    "added": "2026-10-16 Sprint 3 (MAJOR-2; cut_state column and validation added in G5 for E2-6/E2-1/E2-2); label.csv columns, audio format and label semantics unchanged"
+  },
+  "event_extension": {
+    "description": "Columns added in the normalized events table on top of label.csv",
+    "columns": [
+      {"name": "event_type", "allowed": ["path", "interval", "file", "non_cutting"]},
+      {"name": "cut_state", "allowed": ["cutting", "non_cutting", "unknown"]},
+      {"name": "label_native", "description": "Original label text or value from the source"},
+      {"name": "anomaly_type", "description": "e.g. chatter, tool_breakage, tool_wear, clamp_failure; null if unknown"},
+      {"name": "mapping_confidence", "allowed": ["exact", "expert_rule", "threshold", "none"]},
+      {"name": "clip_ratio", "description": "Fraction of native samples at full scale inside the event"}
+    ]
+  },
+  "context_unified": {
+    "description": "Unified controller columns. Source column names differ per machine; mapping is per source.",
+    "columns": [
+      {"name": "time_s", "unit": "s", "use": "alignment"},
+      {"name": "spindle_speed_rpm", "unit": "rpm", "use": "model_ok"},
+      {"name": "feed_rate_mm_s", "unit": "mm/s", "use": "model_ok"},
+      {"name": "spindle_load_pct", "unit": "%", "use": "observer2"},
+      {"name": "axis_load_x_pct", "unit": "%", "use": "observer2"},
+      {"name": "axis_load_y_pct", "unit": "%", "use": "observer2"},
+      {"name": "axis_load_z_pct", "unit": "%", "use": "observer2"},
+      {"name": "power_w", "unit": "W", "use": "observer2", "cleaning": "negative values set to null"},
+      {"name": "execution", "unit": "state", "use": "cut_gate"}
+    ],
+    "known_sources": {
+      "msm_lab": {"time_s": "time", "spindle_speed_rpm": "Spindle_Speed", "feed_rate_mm_s": "Feed_Rate", "spindle_load_pct": "S_Axis_Load", "axis_load_x_pct": "X_Axis_Load", "axis_load_y_pct": "Y_Axis_Load", "axis_load_z_pct": "Z_Axis_Load", "power_w": "watt", "execution": "Execution"},
+      "msm_vf10": {"time_s": "time", "spindle_speed_rpm": "s_speed", "spindle_load_pct": "s_load", "execution": "execution"}
+    }
+  },
+  "provenance_only": {
+    "description": "Fields that can leak the experiment design. Stored in a separate provenance table, never exposed to models or the agent's analysis tools.",
+    "fields": ["program_name", "block_number", "tool_number", "part_count", "nc_program_text", "remark", "tool_code_raw"],
+    "known_sources": {
+      "msm_lab": {"program_name": "Program_Name_Running", "block_number": "Block_Number", "tool_number": "Current_Tool", "part_count": "Part_Count"},
+      "msm_vf10": {"program_name": "program", "block_number": "block_num", "tool_number": "tool_num", "part_count": "part_count"}
+    }
+  },
+  "unit_conversions": [
+    {"from": "mm/min", "to": "mm/s", "factor": 0.016666666666666666},
+    {"from": "in/min", "to": "mm/s", "factor": 0.42333333333333334},
+    {"from": "in", "to": "mm", "factor": 25.4},
+    {"from": "m/min (cutting speed)", "to": "rpm", "note": "needs tool diameter: N = 1000 * v / (pi * D)"}
+  ]
+}

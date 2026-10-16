@@ -38,3 +38,44 @@ PROJECT=<GCP 專案 ID> deploy/deploy.sh
 ## 封存規則
 
 VF-10 測試場次（`prereg-v1.json` 的 `vf10_reference_datasets` 以外）在本機模組與雲端資料包中**預設不送切段、標籤計數與備註**。雲端資料包不含來源庫、標籤庫與原始 WAV。
+
+## 代理人：外部資料正規化（Agent 1）
+
+`agent/cutsound_normalizer/` 是 ADK 代理人：Gemini 讀新資料夾與來源說明頁，提出逐欄對映（標籤規則、工況欄位、單位換算、證據、待答問題）；**人核准後**才由確定性工具轉成 MSM 規格（48 kHz／16-bit／單聲道 WAV＋12 欄 `label.csv`）、驗證、建表。來源沒講清楚的欄位一律空值或 -1，並列成待答問題。細節見 `agent/README.md`。
+
+| 路徑 | 用途 |
+|---|---|
+| `agent/cutsound_normalizer/` | 代理人（8 個工具）、對映 schema、MSM 規格 `spec/msm_spec.json` |
+| `agent/mappings/` | 已核准的參照對映（`ctwa_reference.json`、`msm_vm20i_identity.json`） |
+| `scripts/normalize.py` | 一條龍離線入口：已核准對映 → 轉換 → 驗證 → 表（parquet）→（可選）建庫 |
+| `scripts/propose_mapping.py`、`eval_mapping.py` | 代理人提對映（需金鑰）、與參照對映逐檔比對一致率 |
+
+```bash
+# 離線（不呼叫 Gemini）：對映已由人核准
+python scripts/normalize.py --source <資料夾> --mapping agent/mappings/ctwa_reference.json \
+    --out <正規化輸出> --approved-by "<核准人>" [--db <庫目錄> --msm-raw <MSM raw>]
+```
+
+輸出結構與 MSM 原始資料相同：`<out>/<source_id>/<machine_id>/dataset<N>/`，內含 `<session_id>_s0.wav`、`label.csv`、`session.json`（含 `machine_short`、`machine_name`、`domain`、`coolant`、`mic_type`、`workpiece`、`remark`）；每步結果記在 `<out>/<source_id>/_manifest/normalize_run.json`。
+
+- **編號 N**：`msm_session` 分組（MSM 版面）直接沿用來源資料夾 `dataset<N>` 的編號（MSM 恆等轉換的 37 場與原始編號相同）；`per_file` 分組（如 CTWA）依 session_id 排序從 1 起（不透明、不洩漏類別）。**同一檔案集合可重現；檔案集合改變（增刪檔）即重編，N、建庫 id 與驗證頁網址都會跟著變，穩定鍵是 session_id**。對照表 `_manifest/dataset_index.csv`（`dataset,session_id,source_relative_path`）只放在 manifest，不進 session.json。
+- **未標註切削**：對映判定「在切削、但標籤未定」（`cut_state=cutting`、`msm_label=-1`，例如代理人棄權）的區間不寫進 `label.csv`（仍只含 0／1／2），另寫 `<session_id>_unlabeled.csv`（`start,end,cut_state`，有這種區間才寫）。建庫時這些區間成為 `cut_state=cutting`、`label_std=-1` 的事件，不被當成非切削空隙；驗證頁以紫色「未標註切削」顯示。
+- **切削狀態未知**：對映說不出是否在切削（`cut_state=unknown`，或檔名沒有對應的標籤規則）的區間同樣寫進側檔（`cut_state=unknown`），建庫照存 `cut_state=unknown`、`label_std=-1`，不當成非切削；驗證頁以紫紅「切削狀態未知」顯示。側檔起訖非有限數字、start≥end、超出音長、或與 label.csv／其他側檔列重疊時，validate 與建庫都會指名場次與列報錯（建庫不產生任何庫）。
+- 來源資料夾中任何以 `_` 或 `.` 開頭的路徑元件（例如自己放的 `_analysis/`）不會被音檔 glob 選進來。
+- 用驗證頁看 `--db` 建出的庫：`session_viewer_app.py --msm <資料夾>`，其中 `<資料夾>/db` 就是 `--db` 的目錄（可用目錄連結）；正規化場次的音檔依庫內登記的根目錄讀取。給 `--db` 時會執行 `proto/scripts/build_db.py <msm-raw> <db> --extra-raw <out>/<source_id>`。驗證有錯即停（exit 1）；建庫程式尚不支援 `--extra-raw` 時明說並 exit 2。
+
+**提案 → 人核准 → 正規化**（代理人的提案永遠不會自動套用）：
+
+```bash
+# 1. 線上：代理人讀資料夾與 Kaggle 說明頁，提出對映，存到 $NORMALIZER_WORK_DIR/mappings/<source_id>.json 後停下
+python scripts/propose_mapping.py <資料夾> --kaggle nachiketsoni/cutting-tool-wear-audio-dataset --source-id ctwa --log propose.log
+# 2. 離線：與參照對映逐檔比對（V6 一致率報告；Tool、Workpiece 兩個文字欄忽略大小寫與 -／_／空白差異；direction（UP／DOWN 列舉）與 N、ap、ae、F、Z、D 數值欄須完全相同；以 `_`／`.` 開頭的路徑元件不計，與轉換同規則）
+python scripts/eval_mapping.py <資料夾> work/mappings/ctwa.json agent/mappings/ctwa_reference.json --report v6_report.json
+# 3. 人讀提案全文、回答 unresolved 問題、必要時改標籤規則；確認後才轉換
+python scripts/normalize.py --source <資料夾> --mapping <核准後的對映> --out <正規化輸出> --approved-by "<核准人>"
+```
+
+- **線上模式**（只有第 1 步）：需 Gemini 憑證，環境變數擇一：`GOOGLE_API_KEY`，或 `GOOGLE_API_KEY_FILE`（指向一個第一行為金鑰的文字檔；程式只讀不印）；或 `GOOGLE_GENAI_USE_VERTEXAI=TRUE`＋`GOOGLE_CLOUD_PROJECT`（Vertex AI）。選用 `NORMALIZER_MODEL`（預設 `gemini-3.8-flash`）、`NORMALIZER_WORK_DIR`（提案存放處，預設 `./work`）。成功時 exit 0，提案狀態 `saved_pending_approval`；沒有憑證、API 錯誤或代理人沒存出合格對映時 exit 非 0，且**不建立也不覆寫**提案檔（代理人先存到暫存資料夾，成功才複製過去）。設定 `GOOGLE_CLOUD_PROJECT` 時 `load_tables` 也會載入 BigQuery，否則回報 skipped。金鑰由使用者自行設定，不進 repo。
+- **離線模式**（第 2、3 步）：不呼叫 Gemini、不需任何金鑰；用已核准的對映（例如 `agent/mappings/ctwa_reference.json`）。對映仍有 unresolved 問題時，沒有 `--approved-by` 會拒絕轉換。
+- 互動版：`adk web agent`，代理人存檔後會列出標籤規則與待答問題並請求核准；`convert_source`、`load_tables` 需在介面上確認才會執行。目前互動版有一個已知問題待修（見 `agent/README.md` Online mode），headless 的 `propose_mapping.py` 已繞過。
+- 套件：`pip install -r agent/requirements.txt`。資料（含 CTWA：Apache 2.0，N. Soni et al., IEEE R10-HTC 2023）請自原始來源下載，本 repo 不含音檔。
