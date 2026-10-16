@@ -25,7 +25,14 @@ gcloud storage buckets describe "gs://$BUCKET" >/dev/null 2>&1 || \
   gcloud storage buckets create "gs://$BUCKET" --location="$REGION" --uniform-bucket-level-access --public-access-prevention
 gcloud iam service-accounts describe "$SA" >/dev/null 2>&1 || \
   gcloud iam service-accounts create "$SA_NAME" --display-name="MSM viewer (Cloud Run, read-only bundle)"
-gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member="serviceAccount:$SA" --role=roles/storage.objectViewer >/dev/null
+# 新建的服務帳號要幾秒到一分鐘才會在 IAM 生效，授權失敗就等一下重試
+for i in 1 2 3 4 5 6 7 8; do
+  if gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member="serviceAccount:$SA" --role=roles/storage.objectViewer >/dev/null 2>&1; then
+    echo "bucket 讀取權限已授予 $SA"; break
+  fi
+  [ "$i" = 8 ] && { echo "授權失敗：$SA"; exit 1; }
+  echo "服務帳號尚未生效，${i}0 秒後重試"; sleep $((i * 10))
+done
 
 echo "== 上傳頁面與場次資料（不含音檔）"
 gcloud storage rsync -r -c --exclude='^audio/' "$BUNDLE" "gs://$BUCKET"
