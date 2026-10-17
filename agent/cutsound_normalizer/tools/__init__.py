@@ -4,3 +4,4 @@ from .inspect_tool import inspect_source  # noqa: F401
 from .kaggle_info import kaggle_dataset_info  # noqa: F401
 from .tables import load_tables  # noqa: F401
 from .validate import validate_normalized  # noqa: F401
+from .acoustic import audio_profile, class_separability, detect_change_points, estimate_spindle_speed  # noqa: F401

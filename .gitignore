@@ -31,3 +31,4 @@ __pycache__/
 *.mp4
 *.jsonl
 .env
+!/LICENSE

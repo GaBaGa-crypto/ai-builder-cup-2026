@@ -45,10 +45,11 @@ VF-10 測試場次（`prereg-v1.json` 的 `vf10_reference_datasets` 以外）在
 
 | 路徑 | 用途 |
 |---|---|
-| `agent/cutsound_normalizer/` | 代理人（8 個工具）、對映 schema、MSM 規格 `spec/msm_spec.json` |
+| `agent/cutsound_normalizer/` | 代理人（14 個工具：對映 8 個＋聲學證據 6 個）、對映 schema、提案 schema `proposals.py`、MSM 規格 `spec/msm_spec.json` |
 | `agent/mappings/` | 已核准的參照對映（`ctwa_reference.json`、`msm_vm20i_identity.json`） |
 | `scripts/normalize.py` | 一條龍離線入口：已核准對映 → 轉換 → 驗證 → 表（parquet）→（可選）建庫 |
 | `scripts/propose_mapping.py`、`eval_mapping.py` | 代理人提對映（需金鑰）、與參照對映逐檔比對一致率 |
+| `scripts/propose_evidence.py`、`apply_proposals.py`、`eval_agent_phase2.py` | 代理人聽音檔提證據提案（需金鑰）、人核准的提案寫進新對映、以預先登記規則打分（見下節） |
 
 ```bash
 # 離線（不呼叫 Gemini）：對映已由人核准
@@ -79,3 +80,24 @@ python scripts/normalize.py --source <資料夾> --mapping <核准後的對映> 
 - **離線模式**（第 2、3 步）：不呼叫 Gemini、不需任何金鑰；用已核准的對映（例如 `agent/mappings/ctwa_reference.json`）。對映仍有 unresolved 問題時，沒有 `--approved-by` 會拒絕轉換。
 - 互動版：`adk web agent`，代理人存檔後會列出標籤規則與待答問題並請求核准；`convert_source`、`load_tables` 需在介面上確認才會執行。目前互動版有一個已知問題待修（見 `agent/README.md` Online mode），headless 的 `propose_mapping.py` 已繞過。
 - 套件：`pip install -r agent/requirements.txt`。資料（含 CTWA：Apache 2.0，N. Soni et al., IEEE R10-HTC 2023）請自原始來源下載，本 repo 不含音檔。
+
+### 代理人第二階段：聽音檔、提證據提案（不標註）
+
+代理人另有四個確定性聲學工具（`audio_profile` 四頻帶能量／削波、`detect_change_points` 狀態變化點、`estimate_spindle_speed` 轉速候選與宣稱值比對、`class_separability` 兩類別逐頻帶 AUC）、`render_session_figure`（與驗證頁同款的波形＋四頻帶圖），以及 `save_proposals`。它先讀工況與資料夾類型、**宣告檢查計畫**（每個資料夾跑哪些工具、為什麼），再執行，最後寫提案檔：候選＋引用工具數字的證據＋信心＋待答問題。**它不寫 label.csv、不改 N**；只允許三種結論：「這裡狀態改變」「轉速與宣稱不符」「兩類在聲學上分得開／分不開」。工具的已知限制（取自預先登記的 MSM 評估）寫在代理人指令裡，提案要引用。設計與場景：`design/bdd-agent1-phase2.md`。
+
+```bash
+# 1. 線上：代理人依工況選檢查、跑工具，寫 $NORMALIZER_WORK_DIR/proposals/<source_id>.json（狀態 pending_approval，不套用）
+python scripts/propose_evidence.py <資料夾> --mapping agent/mappings/ctwa_reference.json --source-id ctwa --log evidence.log
+#    MSM 場次（資料夾內有 label.csv）自動進入 consistency_only：只檢查既有標籤，不提標籤候選
+# 2. 離線：用預先登記的規則打分（FEA-001／FEA-003 呼叫凍結的 check_scenarios.py；CTWA 斷刀點 GOLD 區間；MSM 變化點對 label.csv 的 |Δt|）
+python scripts/eval_agent_phase2.py work/proposals/ctwa.json
+# 3. 人寫核准清單（接受哪些 id、變化點的標籤），寫進「新的」對映，再照第一階段轉換
+python scripts/apply_proposals.py work/proposals/ctwa.json --mapping agent/mappings/ctwa_reference.json \
+    --out work/mappings/ctwa_with_evidence.json --approvals approvals.json [--replace-existing]
+python scripts/normalize.py --source <資料夾> --mapping work/mappings/ctwa_with_evidence.json --out <正規化輸出> --approved-by "<核准人>"
+```
+
+- 沒有憑證 exit 3、模型或執行錯誤 exit 1、沒存出合格提案 exit 2；失敗時工作資料夾不留提案檔。證據跑中呼叫 `convert_source`／`load_tables`／`save_mapping` 也判失敗。
+- 單一檔案讀取失敗會記在提案檔 `errors`，其餘照跑。提案檔或核准清單含 `set_N`、`write_label_csv` 等越權鍵時，`apply_proposals.py` 點名拒絕（exit 4），不寫任何檔。
+- `save_proposals` 逐筆檢查證據數字是否出現在該工具的實際輸出，結果記在每筆的 `evidence_check`。
+- 2026-10-17 實跑（gemini-3.8-flash）：CTWA 第一次 FEA-001 過、FEA-003 未過且沒抽到斷刀檔（指令只說「前段檔案」、也沒要求每個轉速不符都要提）；修正指令後第二次 FEA-001、FEA-003 皆過，斷刀點候選 1.5 s（GOLD 區間 0.75–1.80 s），43 筆證據數字全部可在工具輸出找到。MSM imi_vmx30ui dataset14：無任何標籤候選，引用的 5 個變化點與 label.csv 邊界相差 0.035–0.105 s；8 條路徑轉速 6 條一致，2 條（10,000 rpm 取到 0.804×N、12,000 rpm 取到 0.201×N）提為低信心問題。BigQuery 證據表與 Cloud Run 上的證據跑尚未執行。

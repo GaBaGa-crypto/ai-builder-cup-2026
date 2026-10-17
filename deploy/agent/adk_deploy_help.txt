@@ -1,0 +1,119 @@
+Usage: adk deploy cloud_run [OPTIONS] AGENT
+
+  Deploys an agent to Cloud Run.
+
+  AGENT: The path to the agent source code folder.
+
+  Use '--' to separate gcloud arguments from adk arguments.
+
+  Examples:
+
+    adk deploy cloud_run --project=[project] --region=[region]
+    path/to/my_agent
+
+    adk deploy cloud_run --project=[project] --region=[region]
+    path/to/my_agent     -- --no-allow-unauthenticated --min-instances=2
+
+Options:
+  --project TEXT                  Required. Google Cloud project to deploy the
+                                  agent. When absent, default project from
+                                  gcloud config is used.
+  --region TEXT                   Required. Google Cloud region to deploy the
+                                  agent. When absent, gcloud run deploy will
+                                  prompt later.
+  --otel_to_cloud                 Optional. Whether to enable OpenTelemetry
+                                  export to GCP for Cloud Run deployments.
+  --trigger_sources TEXT          Optional. Comma-separated list of trigger
+                                  sources to enable (e.g., 'pubsub,eventarc').
+                                  Registers /trigger/* endpoints for batch and
+                                  event-driven agent invocations.
+  --trigger_oidc_audience TEXT    Optional. Expected audience for Google-
+                                  signed OIDC bearer tokens on
+                                  /apps/{app_name}/trigger/* endpoints.
+  --trigger_oidc_service_accounts TEXT
+                                  Optional. Comma-separated list of allowed
+                                  service account emails for Google-signed
+                                  OIDC tokens on /apps/{app_name}/trigger/*
+                                  endpoints.
+  --with_cloud_run_sandbox        Optional. Whether to enable the Cloud Run
+                                  sandbox for code execution. Requires the
+                                  'gcloud beta run deploy' release track.
+  --allow_origins TEXT            Optional. Origins to allow for CORS. Can be
+                                  literal origins (e.g.,
+                                  'https://example.com') or regex patterns
+                                  prefixed with 'regex:' (e.g.,
+                                  'regex:https://.*\.example\.com').
+  --a2a                           Optional. Whether to enable A2A endpoint.
+  --adk_version TEXT              Optional. The ADK version used in
+                                  deployment. (default: the version in the dev
+                                  environment)  [default: 2.11.0]
+  --log_level [debug|info|warning|error|critical]
+                                  Optional. Set the logging level
+  --temp_folder TEXT              Optional. Temp folder for the generated
+                                  source files (default: a timestamped folder
+                                  in the system temp directory).
+  --with_ui                       Optional. Deploy ADK Web UI if set.
+                                  (default: deploy ADK API server only)
+  --trace_to_cloud                Optional. Whether to enable cloud tracing
+                                  for deployment.
+  --port INTEGER                  Optional. The port of the ADK API server
+                                  (default: 8000).
+  --app_name TEXT                 Optional. App name of the ADK API server
+                                  (default: the folder name of the AGENT
+                                  source code).
+  --provider-args TEXT            Optional. Additional flags passed through to
+                                  the provider's deployment tool (e.g. gcloud
+                                  or docker).
+  --env TEXT                      Optional. Environment variables as multiple
+                                  --env key=value pairs. --env
+                                  GOOGLE_GENAI_USE_ENTERPRISE=1
+  --service_name TEXT             Optional. The service name to use in target
+                                  environment (default: 'adk-default-service-
+                                  name').
+  --session_service_uri TEXT      Optional. The URI of the session service. If
+                                  set, ADK uses this service.
+                                  
+                                  If unset, ADK automatically connects to Agent Platform Sessions when
+                                  an Agent Platform environment is detected. Otherwise, it chooses a
+                                  default session service (see --use_local_storage).
+                                  - Use 'agentengine://<agent_engine>' to connect to Agent Engine
+                                    sessions. <agent_engine> can either be the full qualified resource
+                                    name 'projects/abc/locations/us-central1/reasoningEngines/123' or
+                                    the resource id '123'.
+                                  - Use 'memory://' to run with the in-memory session service.
+                                  - Use 'sqlite://<path_to_sqlite_file>' to connect to a SQLite DB.
+                                  - See https://docs.sqlalchemy.org/en/20/core/engines.html#backend-specific-urls
+                                    for supported database URIs.
+  --artifact_service_uri TEXT     Optional. The URI of the artifact service.
+                                  If set, ADK uses this service.
+                                  
+                                  If unset, ADK chooses a default artifact service (see
+                                  --use_local_storage).
+                                  - Use 'gs://<bucket_name>' to connect to the GCS artifact service.
+                                  - Use 'memory://' to force the in-memory artifact service.
+                                  - Use 'file://<path>' to store artifacts in a custom local directory.
+  --use_local_storage / --no_use_local_storage
+                                  Optional. Whether to use local .adk storage
+                                  when explicit service URIs are unset, and an
+                                  Agent Platform environment is not detected.
+                                  Cannot be combined with explicit service
+                                  URIs. When the agents directory isn't
+                                  writable (common in Cloud Run/Kubernetes),
+                                  ADK falls back to in-memory unless
+                                  overridden by ADK_FORCE_LOCAL_STORAGE=1 or
+                                  ADK_DISABLE_LOCAL_STORAGE=1.  [default:
+                                  no_use_local_storage]
+  --memory_service_uri TEXT       Optional. The URI of the memory service. If
+                                  set, ADK uses this service.
+                                  
+                                  If unset, ADK automatically connects to Agent Platform Memory Bank
+                                  when an Agent Platform environment is detected. Otherwise, it uses
+                                  the default memory service.
+                                  - Use 'rag://<rag_corpus_id>' to connect to Vertex AI Rag Memory Service.
+                                  - Use 'agentengine://<agent_engine>' to connect to Agent Engine
+                                    sessions. <agent_engine> can either be the full qualified resource
+                                    name 'projects/abc/locations/us-central1/reasoningEngines/123' or
+                                    the resource id '123'.
+                                  - Use 'sqlite:///<relative_path>' / 'sqlite:////<absolute_path>' to connect to SQLite memory service.
+                                  - Use 'memory://' to force the in-memory memory service.
+  --help                          Show this message and exit.
