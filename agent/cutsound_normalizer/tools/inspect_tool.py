@@ -28,6 +28,14 @@ def inspect_source(source_dir: str, max_audio: int = 12, max_tables: int = 8, ma
         audio (format per sampled file), tables (header + 3 rows), texts (README content).
     """
     root = Path(source_dir)
+    # Deployed instances set NORMALIZER_DATA_ROOT (e.g. /data); folders outside it are refused so an anonymous
+    # caller cannot enumerate the container (finding from the 2026-10-17 cross-engine audit).
+    data_root = os.environ.get("NORMALIZER_DATA_ROOT")
+    if data_root:
+        try:
+            root.resolve().relative_to(Path(data_root).resolve())
+        except ValueError:
+            return {"error": f"source_dir must be inside the data root {data_root!r}", "root": str(source_dir)}
     if not root.is_dir():
         return {"error": f"not a directory: {source_dir}"}
     by_ext = collections.Counter()

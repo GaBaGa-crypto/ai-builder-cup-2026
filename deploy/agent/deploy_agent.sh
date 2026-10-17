@@ -164,7 +164,9 @@ for r in $ROLES; do
     --member="serviceAccount:$SA" --role="$r" --condition=None --quiet
 done
 
-EXTRA_ENV=(--env "NORMALIZER_MODEL=$NORMALIZER_MODEL" --env "NORMALIZER_WORK_DIR=/tmp/normalizer_work")
+# MSYS/Git Bash would rewrite "/tmp/..." and "/data" into Windows paths before gcloud sees them; disable that here.
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*"
+EXTRA_ENV=(--env "NORMALIZER_MODEL=$NORMALIZER_MODEL" --env "NORMALIZER_WORK_DIR=/tmp/normalizer_work" --env "NORMALIZER_DATA_ROOT=/data")
 EXTRA_GCLOUD=()
 if [ "$AUTH_MODE" = vertex ]; then
   # Vertex：ADK 預設就設 GOOGLE_GENAI_USE_ENTERPRISE=1、GOOGLE_CLOUD_PROJECT、GOOGLE_CLOUD_LOCATION=<區域>；
@@ -209,7 +211,7 @@ echo "== 部署 Cloud Run 服務 $SERVICE（ADK $ADK_VERSION，含 Web UI）"
   -- \
   --service-account="$SA" \
   --execution-environment=gen2 \
-  --memory=4Gi --cpu=2 --min-instances=0 --max-instances=2 --concurrency=4 --timeout=900 \
+  --memory=4Gi --cpu=2 --min-instances=0 --max-instances=2 --concurrency=4 --timeout=600 \
   --labels=app=msm-normalizer \
   --quiet \
   "${EXTRA_GCLOUD[@]}"
