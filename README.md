@@ -2,6 +2,16 @@
 
 AI Builder Cup 2026（工況條件化的切削聲音異常偵測）在 GB10 上的程式。資料是 Purdue 的 MSM 多感測器銑削資料集（Scientific Data 2026, 13:945；資料 CC BY 4.0，Kaggle DOI 10.34740/kaggle/ds/8392825）。**本 repo 不含任何資料**：音檔、資料庫、標籤都不進版控。
 
+## 線上原型（AI Builder Cup 2026 投件）
+
+| 入口 | 網址 | 這個 repo 裡對應的程式 |
+|---|---|---|
+| 一鍵示範頁（不用打字，8 個步驟驅動雲端代理人，右側顯示工具呼叫／回傳／結論） | `https://msm-viewer-mdiyka74ta-de.a.run.app/demo?k=<存取碼>`（存取碼在投件表單） | `proto/scripts/demo_page.html`、`viewer_bundle_server.py` |
+| 切段驗證頁（471 場：MSM 69＋CTWA 402；波形、四頻帶、事件表） | `https://msm-viewer-mdiyka74ta-de.a.run.app/?k=<存取碼>` | `proto/scripts/session_viewer*.py`、`export_viewer_bundle.py`、`deploy/deploy.sh` |
+| 代理人 ADK 主控台（自己打字問；Gemini 3.8 Flash on Vertex AI；讀 GCS `/data`；查 BigQuery） | `https://msm-normalizer-agent-mdiyka74ta-de.a.run.app/dev-ui/` | `agent/cutsound_normalizer/`、`deploy/agent/deploy_agent.sh` |
+
+GitHub 只放程式與規格：**不含**音檔、資料庫、資料包、憑證與存取碼。雲端服務是用本 repo 的 `deploy/` 腳本建出來的；照 `deploy/agent/README.md` 與 `deploy/deploy.sh` 的前置步驟可在自己的 GCP 專案重現。BigQuery 表 `msm_norm`（sessions／events／context）由 `agent/.../tools/tables.py` 載入。
+
 ## 內容
 
 | 路徑 | 用途 |
@@ -100,4 +110,4 @@ python scripts/normalize.py --source <資料夾> --mapping work/mappings/ctwa_wi
 - 沒有憑證 exit 3、模型或執行錯誤 exit 1、沒存出合格提案 exit 2；失敗時工作資料夾不留提案檔。證據跑中呼叫 `convert_source`／`load_tables`／`save_mapping` 也判失敗。
 - 單一檔案讀取失敗會記在提案檔 `errors`，其餘照跑。提案檔或核准清單含 `set_N`、`write_label_csv` 等越權鍵時，`apply_proposals.py` 點名拒絕（exit 4），不寫任何檔。
 - `save_proposals` 逐筆檢查證據數字是否出現在該工具的實際輸出，結果記在每筆的 `evidence_check`。
-- 2026-10-17 實跑（gemini-3.8-flash）：CTWA 第一次 FEA-001 過、FEA-003 未過且沒抽到斷刀檔（指令只說「前段檔案」、也沒要求每個轉速不符都要提）；修正指令後第二次 FEA-001、FEA-003 皆過，斷刀點候選 1.5 s（GOLD 區間 0.75–1.80 s），43 筆證據數字全部可在工具輸出找到。MSM imi_vmx30ui dataset14：無任何標籤候選，引用的 5 個變化點與 label.csv 邊界相差 0.035–0.105 s；8 條路徑轉速 6 條一致，2 條（10,000 rpm 取到 0.804×N、12,000 rpm 取到 0.201×N）提為低信心問題。BigQuery 證據表與 Cloud Run 上的證據跑尚未執行。
+- 2026-10-17 實跑（gemini-3.8-flash）：CTWA 第一次 FEA-001 過、FEA-003 未過且沒抽到斷刀檔（指令只說「前段檔案」、也沒要求每個轉速不符都要提）；修正指令後第二次 FEA-001、FEA-003 皆過，斷刀點候選 1.5 s（GOLD 區間 0.75–1.80 s），43 筆證據數字全部可在工具輸出找到。MSM imi_vmx30ui dataset14：無任何標籤候選，引用的 5 個變化點與 label.csv 邊界相差 0.035–0.105 s；8 條路徑轉速 6 條一致，2 條（10,000 rpm 取到 0.804×N、12,000 rpm 取到 0.201×N）提為低信心問題。2026-10-18 起代理人已部署於 Cloud Run（GCS 資料卷 `/data`）、BigQuery `msm_norm` 已載入（37＋402 場、3,207＋404 事件、78,567 控制器列），見上方「線上原型」。
