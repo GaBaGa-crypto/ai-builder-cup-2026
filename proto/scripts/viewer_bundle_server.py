@@ -26,19 +26,70 @@ MAX_QUERY_FIELDS = 16
 PAYLOAD_RE = re.compile(r"[a-z0-9_]+")
 AUDIO_RE = re.compile(r"/audio/([a-z0-9]+_[0-9a-f]{6})/(s[012])\.mp3")
 REPLAY_RE = re.compile(r"/demo_replays/([a-z0-9_-]+)\.json")
-DENIED = """<!doctype html><meta charset="utf-8"><title>需要存取碼</title>
+DENIED = """<!doctype html><meta charset="utf-8"><title>需要存取碼 / Access code required</title>
 <body style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 16px;line-height:1.6">
-<h1 style="font-size:1.3rem">需要存取碼</h1><p>這是 MSM 切段驗證頁。請使用完整的分享網址（結尾是 <code>?k=…</code>）開啟。</p></body>""".encode()
+<h1 style="font-size:1.3rem">需要存取碼 / Access code required</h1>
+<p>這是 MSM 切段驗證頁。請使用完整的分享網址（結尾是 <code>?k=…</code>）開啟。</p>
+<p lang="en">This is the MSM session viewer. Please open it with the complete shared link (it ends in <code>?k=…</code>).</p></body>""".encode()
 
 
 AGENT_CONSOLE_URL = os.environ.get("AGENT_CONSOLE_URL", "https://msm-normalizer-agent-mdiyka74ta-de.a.run.app/dev-ui/")
 _AGENT_CONSOLE_PARTS = urllib.parse.urlsplit(AGENT_CONSOLE_URL)
 AGENT_CONSOLE_ORIGIN = (f"{_AGENT_CONSOLE_PARTS.scheme}://{_AGENT_CONSOLE_PARTS.netloc}"
                         if _AGENT_CONSOLE_PARTS.scheme == "https" and _AGENT_CONSOLE_PARTS.netloc else "")
-NAV_CSS = ("<style>.msm-nav{position:sticky;top:0;z-index:50;display:flex;gap:6px;align-items:center;padding:6px 16px;"
+NAV_CSS = ("<style>.msm-nav{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 16px;"
            "background:#111827;border-bottom:1px solid #374151;font:14px system-ui,sans-serif}.msm-nav a{color:#e5e7eb;"
            "text-decoration:none;padding:6px 12px;border-radius:6px;border:1px solid transparent}.msm-nav a:hover{border-color:#6b7280}"
-           ".msm-nav a.on{background:#2563eb;color:#fff}.msm-nav .sp{flex:1}.msm-nav small{color:#9ca3af}</style>")
+           ".msm-nav a.on{background:#2563eb;color:#fff}.msm-nav .sp{flex:1}.msm-nav small{color:#9ca3af}"
+           ".msm-nav .msm-lang{display:inline-flex;flex-shrink:0;border:1px solid #4b5563;border-radius:6px;overflow:hidden;margin-right:10px}"
+           ".msm-nav .msm-lang button{font:inherit;color:#e5e7eb;background:transparent;border:0;padding:5px 10px;cursor:pointer}"
+           ".msm-nav .msm-lang button.on{background:#374151;color:#fff;font-weight:600}"
+           "html[lang=en] [data-i18n-zh-only]{display:none}</style>")
+
+# Shared client-side language engine (zh-Hant / en). Pages add their own tables via window.MSM_I18N_EXTRA.
+# Order: URL ?lang=zh|en (whitelisted, then remembered) > localStorage msm_lang > navigator language (zh* -> zh, else en).
+# In zh the DOM is never touched (the Chinese page is the submitted version). In en, text nodes and a few attributes are
+# translated through exact / regex / phrase tables; a MutationObserver covers text the page builds later.
+I18N_JS = r"""<script>(function(){
+var CJK=/[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/,HAN=/[\u4e00-\u9fff]/;
+var q=/[?&]lang=(zh|en)(?:&|$)/.exec(location.search),lang=null;
+if(q){lang=q[1];try{localStorage.setItem("msm_lang",lang);}catch(e){}}
+if(!lang){try{var st=localStorage.getItem("msm_lang");if(st==="zh"||st==="en")lang=st;}catch(e){}}
+if(!lang){var nl=(navigator.languages&&navigator.languages[0])||navigator.language||"en";lang=/^zh/i.test(nl)?"zh":"en";}
+document.documentElement.lang=lang==="zh"?"zh-Hant":"en";
+var hide=null;if(lang==="en"){hide=document.createElement("style");hide.textContent='html[lang="en"] body{visibility:hidden}';(document.head||document.documentElement).appendChild(hide);}
+var PUNCT=[["（"," ("],["）",")"],["，",", "],["。",". "],["；","; "],["：",": "],["、",", "],["｜"," | "],["／","/"],["＋","+"],["＝","="],["「","\u201c"],["」","\u201d"]];
+var ATTRS=["title","aria-label","placeholder","alt"];
+var API={lang:lang,missing:{},exact:{},rules:[],phrases:[],heuristics:false,skip:"script,style,pre,code,textarea,[data-i18n-skip],[data-i18n-zh-only]"},merged=false,started=false;
+API.exact["切段驗證頁 / Session viewer"]="Session viewer";API.exact["一鍵示範頁 / One-click demo"]="One-click demo";API.exact["代理人主控台 / Agent console ↗"]="Agent console ↗";
+function merge(x){if(!x)return;var k;for(k in x.exact||{})API.exact[k]=x.exact[k];(x.rules||[]).forEach(function(r){API.rules.push(r);});for(k in x.phrases||{})API.phrases.push([k,x.phrases[k]]);API.phrases.sort(function(a,b){return b[0].length-a[0].length;});if(x.skip)API.skip+=","+x.skip;if(x.heuristics)API.heuristics=true;}
+function pair(s){var i=s.indexOf(" / "),n=3;if(i<0){i=s.indexOf("）/ ");if(i>=0){i+=1;n=2;}}if(i<=0)return null;var L=s.slice(0,i),R=s.slice(i+n);if(!CJK.test(L)||CJK.test(R)||!R.trim())return null;return /^[^A-Za-z0-9\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]*/.exec(L)[0]+R;}
+function tail(s){var i=s.length-1;while(i>=0&&!CJK.test(s.charAt(i)))i--;if(i<0)return null;var r=s.slice(i+1).replace(/^[\s.;:,)\u201d]+/,"");return r.length>=12&&/^[A-Za-z\u201c]/.test(r)?r:null;}
+function tr(s){if(!CJK.test(s))return s;var m=/^(\s*)([\s\S]*?)(\s*)$/.exec(s),a=m[1],core=m[2],z=m[3],out=null,i;
+if(Object.prototype.hasOwnProperty.call(API.exact,core))out=API.exact[core];
+if(out==null){for(i=0;i<API.rules.length;i++){if(API.rules[i][0].test(core)){out=core.replace(API.rules[i][0],API.rules[i][1]);break;}}}
+if(out==null&&API.heuristics)out=pair(core);
+if(out==null)out=core;if(HAN.test(out)){for(i=0;i<API.phrases.length;i++){if(out.indexOf(API.phrases[i][0])>=0)out=out.split(API.phrases[i][0]).join(API.phrases[i][1]);}}
+if(HAN.test(out)&&API.heuristics){var t=tail(out);if(t)out=t;}
+if(CJK.test(out)){for(i=0;i<PUNCT.length;i++)out=out.split(PUNCT[i][0]).join(PUNCT[i][1]);out=out.replace(/\s{2,}/g," ").replace(/\(\s+/g,"(").replace(/\s+\)/g,")").replace(/\s+([,.;:])/g,"$1");}
+if(HAN.test(out)&&!API.missing[core]){API.missing[core]=1;if(window.console)console.warn("[msm-i18n] untranslated:",core);}
+return a+out+z;}
+function skip(el){return !!(el&&el.closest&&el.closest(API.skip));}
+function attrs(el){for(var i=0;i<ATTRS.length;i++){if(el.hasAttribute(ATTRS[i])){var v=el.getAttribute(ATTRS[i]),w=tr(v);if(w!==v)el.setAttribute(ATTRS[i],w);}}}
+function text(n){var v=tr(n.data);if(v!==n.data)n.data=v;}
+function node(n){if(n.nodeType===3){var p=n.parentNode;if(p&&p.nodeType===1&&!skip(p))text(n);return;}if(n.nodeType!==1||skip(n))return;attrs(n);
+var w=document.createTreeWalker(n,5,null,false),c;while((c=w.nextNode())){if(c.nodeType===1){if(!skip(c))attrs(c);}else if(c.parentNode&&!skip(c.parentNode))text(c);}}
+function unhide(){if(hide&&hide.parentNode)hide.parentNode.removeChild(hide);hide=null;}if(hide)setTimeout(unhide,3000);
+function start(){if(started)return;started=true;try{node(document.documentElement);}finally{unhide();}
+new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var m=ms[i];if(m.type==="childList"){for(var j=0;j<m.addedNodes.length;j++)node(m.addedNodes[j]);}else if(m.type==="characterData"){node(m.target);}else if(m.target.nodeType===1&&!skip(m.target)){attrs(m.target);}}})
+.observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:ATTRS});}
+function mark(){var b=document.querySelectorAll(".msm-lang button[data-lang]");for(var i=0;i<b.length;i++){var on=b[i].getAttribute("data-lang")===lang;b[i].classList.toggle("on",on);b[i].setAttribute("aria-pressed",on?"true":"false");}}
+API.set=function(l){if((l!=="zh"&&l!=="en")||l===lang)return;var stored=true;try{localStorage.setItem("msm_lang",l);}catch(e){stored=false;}
+try{var u=new URL(location.href);if(stored)u.searchParams.delete("lang");else u.searchParams.set("lang",l);history.replaceState(null,"",u.href);}catch(e){}
+if(l==="en"){lang=API.lang="en";document.documentElement.lang="en";if(!merged){merge(window.MSM_I18N_EXTRA);merged=true;}start();mark();}else{location.reload();}};
+function ready(){if(!merged){merge(window.MSM_I18N_EXTRA);merged=true;}mark();document.addEventListener("click",function(e){var t=e.target&&e.target.closest&&e.target.closest(".msm-lang button[data-lang]");if(t)API.set(t.getAttribute("data-lang"));});if(lang==="en")start();}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",ready);else ready();
+window.MSM_I18N=API;})();</script>"""
 
 
 def nav_html(active):
@@ -52,7 +103,11 @@ def nav_html(active):
             + item("/", "切段驗證頁 / Session viewer", "viewer")
             + item("/demo", "一鍵示範頁 / One-click demo", "demo")
             + item(agent_href, "代理人主控台 / Agent console ↗", "agent", ' target="_blank" rel="noopener noreferrer"')
-            + '<span class="sp"></span><small>MSM · AI Builder Cup 2026</small></nav>')
+            + '<span class="sp"></span>'
+            + '<span class="msm-lang" role="group" aria-label="Language / 語言" data-i18n-skip>'
+            + '<button type="button" data-lang="zh" lang="zh-Hant" aria-pressed="false">中文</button>'
+            + '<button type="button" data-lang="en" lang="en" aria-pressed="false">EN</button></span>'
+            + '<small>MSM · AI Builder Cup 2026</small></nav>' + I18N_JS)
 
 
 def with_nav(html_bytes, active):
@@ -114,7 +169,8 @@ def make_handler(bundle, token):
                 self.send_response(303)
                 redirect = u.path if (u.path in ("/", "/index.html", "/demo", "/demo.html")
                                            and "\\" not in u.path and not u.path.startswith("//")) else "/"
-                self.send_header("Location", redirect)
+                lang = query.get("lang", [""])[0]  # keep a whitelisted ?lang= so a share link can force the language
+                self.send_header("Location", redirect + ("?lang=" + lang if lang in ("zh", "en") else ""))
                 self.send_header("Set-Cookie", f"{COOKIE}={cookie_val}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", "0")

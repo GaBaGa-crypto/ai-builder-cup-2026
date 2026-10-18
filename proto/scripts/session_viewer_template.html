@@ -80,6 +80,88 @@ tbody tr.cur { outline:2px solid var(--accent); outline-offset:-2px; background:
 td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px; }
 .note { font-size:.85rem; color:var(--muted); }
 </style>
+<script>
+// English table for the shared language engine (injected by viewer_bundle_server.py together with the nav).
+// zh text is the source of truth and is never rewritten; in en, exact > rules > phrases (longest first), then punctuation.
+window.MSM_I18N_EXTRA = {
+  exact: {
+    "選擇場次": "Choose a session", "機台": "Machine", "場次": "Session", "◀ 上一場": "◀ Previous", "下一場 ▶": "Next ▶",
+    "只列含標籤 1 或 2 的場次": "Only sessions containing label 1 or 2",
+    "AI Builder Cup 2026 · 切段驗證": "AI Builder Cup 2026 · Session viewer", "切段驗證": "Segmentation check",
+    "目前怎麼切的": "How the segments were cut", "切削事件": "Cutting events", "非切削事件": "Non-cutting gaps",
+    "時間對齊": "Time alignment", "怎麼驗證": "How to verify",
+    "直接照抄 label.csv 每一列的起訖秒數，沒有自己切。顏色依該列的標籤：綠＝標籤 0 正常，紅＝標籤 1 異常，橙＝標籤 2 缺陷刀但切削正常；紫＝未標註切削（正規化來源確定在切削、但標籤未定，記 -1，取自 _unlabeled.csv）；紫紅＝切削狀態未知（來源沒說這段是否在切削，記 -1，同樣取自 _unlabeled.csv，不當成非切削）。":
+      "Start and end seconds are copied verbatim from each row of label.csv; nothing is re-segmented. Colour follows the row's label: green = label 0 normal, red = label 1 abnormal, orange = label 2 defective tool but cutting normal; purple = unlabelled cutting (the normalised source is sure it is cutting but the label is undecided, stored as -1, from _unlabeled.csv); magenta = cutting state unknown (the source does not say whether this span is cutting, stored as -1, also from _unlabeled.csv, not treated as non-cutting).",
+    "相鄰兩段切削（含未標註切削與切削狀態未知）之間、第一段之前、最後一段之後的空隙，長度至少 0.5 秒才成立，灰色。":
+      "Gaps between neighbouring cutting spans (including unlabelled cutting and cutting-state-unknown), before the first span and after the last one; a gap counts only if it is at least 0.5 s long. Grey.",
+    "按播放聽，看顏色邊界是否落在聲音變化處；也可對照下方主軸轉速。點波形任一處跳播，點下表任一列播放該段。":
+      "Press play and listen: do the colour boundaries fall where the sound changes? Compare with the spindle speed below. Click anywhere on the waveform to seek; click a table row to play that segment.",
+    "播放與檢視": "Playback and view", "聲道": "Channels", "▶ 播放": "▶ Play", "❚❚ 暫停": "❚❚ Pause", "縮放": "Zoom", "全場": "Full",
+    "60 秒": "60 s", "20 秒": "20 s", "5 秒": "5 s", "往前": "Pan back", "往後": "Pan forward",
+    "畫面跟著播放": "Follow playback", "點選事件時只播該段": "Play only the clicked event",
+    "標籤 0 正常切削": "Label 0 normal cutting", "標籤 1 異常（應停機）": "Label 1 abnormal (machine should stop)",
+    "標籤 2 缺陷刀但切削正常": "Label 2 defective tool, cutting normal", "未標註切削（標籤未定，-1）": "Unlabelled cutting (label undecided, -1)",
+    "切削狀態未知（-1）": "Cutting state unknown (-1)", "非切削": "Non-cutting", "播放位置": "Playhead",
+    "波形顏色＝所在事件；虛線＝滿刻度（波形碰到即削波）": "Waveform colour = current event; dashed line = full scale (touching it means clipping)",
+    "波形與主軸轉速": "Waveform and spindle speed", "全場總覽（點一下移到該處；框＝目前視窗）": "Whole-session overview (click to jump; box = current window)",
+    "波形": "Waveform", "波形圖，依事件著色": "Waveform coloured by event",
+    "頻帶音量（dB 相對滿刻度；與 PDF 四塊圖相同，0.1 秒一格，縮小時取能量平均）": "Band level (dB re full scale; same as the four PDF panels, 0.1 s per bin, energy-averaged when zoomed out)",
+    "0 到 4 kHz 頻帶音量": "0–4 kHz band level", "1 到 4 kHz 頻帶音量": "1–4 kHz band level", "4 到 10 kHz 頻帶音量": "4–10 kHz band level", "10 到 24 kHz 頻帶音量": "10–24 kHz band level",
+    "主軸轉速（控制器 MTConnect，rpm）": "Spindle speed (controller MTConnect, rpm)", "主軸轉速": "Spindle speed", "無控制器資料": "No controller data",
+    "事件表": "Event table", "全部": "All", "切削": "Cutting", "標籤 1": "Label 1", "標籤 2": "Label 2", "標籤 0": "Label 0",
+    "未標註切削": "Unlabelled cutting", "切削狀態未知": "Cutting state unknown",
+    "類別": "Class", "起秒": "Start (s)", "迄秒": "End (s)", "長度秒": "Length (s)", "方向": "Direction", "刀具": "Tool",
+    "s0 削波比例": "s0 clip ratio", "冷卻": "Coolant", "s0 音量 dBFS": "s0 level dBFS",
+    "長度": "Length", "封存": "sealed", "標籤 0 路徑": "Label 0 events", "標籤 1 路徑": "Label 1 events", "標籤 2 路徑": "Label 2 events",
+    "非切削段": "Non-cutting gaps", "未標註（-1）": "Unlabelled (-1)",
+    "無控制器資料（此場次沒有控制器檔，不估時間偏移；主軸轉速圖為空）。": "No controller data (this session has no controller file, so no time offset is estimated; the spindle-speed track is empty).",
+    "這是 VF-10 測試場次，依 2026-10-14 預先登記封存：只顯示聲音、波形與主軸轉速，不顯示切段與標籤。要看切段，需由你決定以 --unseal-vf10 重新啟動模組（會記一筆偏離）。":
+      "This is a VF-10 test session, sealed under the 2026-10-14 pre-registration: only audio, waveform and spindle speed are shown, not segments or labels. To see segments the owner must restart the module with --unseal-vf10 (logged as a deviation).",
+    "切段封存": "Segments sealed", "此場次不顯示事件；可以聽聲音、看波形與主軸轉速。": "Events are hidden for this session; you can still listen and view the waveform and spindle speed.",
+    "目前位置不在任何事件內": "Playhead is not inside any event", "（小於 0.5 秒的空隙不算事件）": "(gaps shorter than 0.5 s do not count as events)",
+    "來源沒說明這段是否在切削（切削狀態未知，標籤 -1，待人判定）；沒有工況": "The source does not say whether this span is cutting (cutting state unknown, label -1, awaiting a human decision); no cutting conditions",
+    "非切削段沒有工況": "Non-cutting gap: no cutting conditions",
+    "標籤 1 異常": "Label 1 abnormal", "標籤 2 缺陷刀": "Label 2 defective tool", "標籤 0 正常": "Label 0 normal",
+    "此場次切段封存，不列事件。": "Segments are sealed for this session; no events listed.", "此篩選條件下沒有事件。": "No events match this filter.",
+    "VF-10 測試場次（切段封存）": "VF-10 test session (sealed)", "無切削事件": "no cutting events", "全部正常": "all normal",
+    "載入中…（讀原始 WAV 算波形，約 1–3 秒）": "Loading… (computing the waveform from the raw WAV, about 1–3 s)",
+    "削波比例＝滿刻度樣本占比（s0）。MP3 約 160 kbps 只供試聽；波形由原始 WAV 計算。": "Clip ratio = share of full-scale samples (s0). The MP3 (about 160 kbps) is for listening only; the waveform is computed from the raw WAV.",
+    "削波比例＝滿刻度樣本占比（s0）。播放的是原始 WAV（48 kHz、16-bit，無壓縮）；波形由原始 WAV 計算。": "Clip ratio = share of full-scale samples (s0). Playback uses the raw WAV (48 kHz, 16-bit, uncompressed); the waveform is computed from the raw WAV.",
+    "麥克風（來源未註明）": "microphone (source not stated)", "麥克風": "microphone", "未註明": "not stated", "乾切": "dry cut", "濕切": "wet cut"
+  },
+  rules: [
+    [/^(.+) 切段驗證$/, "$1 · segmentation check"],
+    [/^AI Builder Cup 2026 · 切段驗證 · 此場次切段封存$/, "AI Builder Cup 2026 · Session viewer · segments sealed for this session"],
+    [/^AI Builder Cup 2026 · 切段驗證 · 標籤已依使用者要求顯示（偏離紀錄 D2／D3）$/, "AI Builder Cup 2026 · Session viewer · labels shown at the owner's request (deviation log D2/D3)"],
+    [/^材料 ([\s\S]*)｜刀具 ([\s\S]*)｜資料集備註：([\s\S]*)$/, "Material $1 | Tool $2 | Dataset note: $3"],
+    [/^([\d.]+) 分（([\d.]+) 秒）$/, "$1 min ($2 s)"],
+    [/^(\d+)（含切削狀態未知 (\d+)）$/, "$1 (incl. cutting state unknown $2)"],
+    [/^聲音與控制器檔名時間戳相同（名目偏移 0）。第 2 步以主軸(轉速|負載)估偏移：前半 ([^ ]+) 秒、後半 ([^ ]+) 秒，信心 ([^（]+)（只記錄，未修正時間軸）。$/,
+      function (m, a, h, t, c) { return "Audio and controller file timestamps match (nominal offset 0). Pipeline step 2 estimated the offset from spindle " + (a === "轉速" ? "speed" : "load") + ": first half " + h + " s, second half " + t + " s, confidence " + c + " (recorded only; the time axis is not corrected)."; }],
+    [/^波形：([\s\S]*?)（整場削波樣本 ([\d.]+)%）$/, "Waveform: $1 (clipped samples over the whole session: $2%)"],  // channel name then goes through the phrase table
+    [/^目前事件 #(\d+)$/, "Event #$1"],
+    [/^([\d.]+)–([\d.]+) 秒（([\d.]+) 秒）$/, "$1–$2 s ($3 s)"],
+    [/^([\d.]+)–([\d.]+) 秒（([\d.]+) 秒寬）$/, "$1–$2 s ($3 s wide)"],
+    [/^([\d.]+) 秒$/, "$1 s"],
+    [/^([\d.]+) \/ ([\d.]+) 秒$/, "$1 / $2 s"],
+    [/^來源確定在切削、標籤未定（-1，待人判定）｜([\s\S]*)$/, "Source is sure it is cutting, label undecided (-1, awaiting a human decision) | $1"],
+    [/^載入失敗：([\s\S]*)。請確認模組仍在執行。$/, "Load failed: $1. Check that the module is still running."],
+    [/^讀不到場次清單：([\s\S]*)$/, "Could not read the session list: $1"],
+    [/^([\s\S]*)（(\d+) 場）$/, "$1 ($2 sessions)"]
+  ],
+  phrases: {
+    "｜刀具 ": " | Tool ", "s0 削波比例 ": "s0 clip ratio ", "｜冷卻 ": " | coolant: ", "｜s0 音量 ": " | s0 level ",
+    "未註明": "not stated", "乾切": "dry cut", "濕切": "wet cut", "麥克風": "microphone", "（來源未註明）": " (source not stated)",
+    "標籤0＋未標註": "label 0 + unlabelled", "＋未標註": " + unlabelled", "／未標註 ": "/unlabelled ",
+    "標籤1＋標籤2": "label 1 + label 2", "標籤1": "label 1", "標籤2": "label 2", "切削狀態未知": "cutting state unknown", "未標註切削": "unlabelled cutting",
+    "無切削事件": "no cutting events", "全部正常": "all normal", "來源未註明": "source not stated", "刀具": "Tool",
+    "空氣麥克風": "air microphone", "接觸式聽診器": "contact stethoscope", "順銑": "down (climb) milling", "逆銑": "up (conventional) milling",
+    "（無備註）": "(no remark)", "（封存）": "(sealed)", "VF-10 測試場次（切段封存）": "VF-10 test session (sealed)",
+    " 混合": " + label 0", " 全段": " only", " 分": " min", " 秒": " s"
+  }
+};
+</script>
+
 
 <div class="wrap">
   <section class="picker" id="picker" hidden aria-label="選擇場次">

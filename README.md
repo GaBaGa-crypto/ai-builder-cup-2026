@@ -10,6 +10,8 @@ AI Builder Cup 2026（工況條件化的切削聲音異常偵測）在 GB10 上�
 | 切段驗證頁（471 場：MSM 69＋CTWA 402；波形、四頻帶、事件表） | `https://msm-viewer-mdiyka74ta-de.a.run.app/?k=<存取碼>` | `proto/scripts/session_viewer*.py`、`export_viewer_bundle.py`、`deploy/deploy.sh` |
 | 代理人 ADK 主控台（自己打字問；Gemini 3.8 Flash on Vertex AI；讀 GCS `/data`；查 BigQuery） | `https://msm-normalizer-agent-mdiyka74ta-de.a.run.app/dev-ui/` | `agent/cutsound_normalizer/`、`deploy/agent/deploy_agent.sh` |
 
+兩個頁面都是**中英雙語**：依瀏覽器語系自動選擇（zh → 中文，其餘 → English），右上角「中文／EN」可切換並記住；分享連結加 `&lang=en` 可強制英文。Both pages are bilingual (auto by browser language, switch in the top bar, `&lang=en` forces English); model output, tool results and dataset values are never translated.
+
 GitHub 只放程式與規格：**不含**音檔、資料庫、資料包、憑證與存取碼。雲端服務是用本 repo 的 `deploy/` 腳本建出來的；照 `deploy/agent/README.md` 與 `deploy/deploy.sh` 的前置步驟可在自己的 GCP 專案重現。BigQuery 表 `msm_norm`（sessions／events／context）由 `agent/.../tools/tables.py` 載入。
 
 ## 內容

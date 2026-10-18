@@ -73,10 +73,32 @@ a { color:var(--accent); }
 </style>
 </head>
 <body>
+<script>
+// English table for the shared language engine (viewer_bundle_server.py injects it with the nav). zh is the source text; nothing here runs in zh.
+window.MSM_I18N_EXTRA = {
+  heuristics: true,            // "中文 / English" pairs -> English half; "中文。English sentence" -> English sentence
+  skip: ".md, .card pre",      // model output and tool results are evidence: never translated
+  exact: {
+    "點左邊任一步驟，頁面會把預先寫好的提示送給雲端 ADK 代理，右邊依序顯示它呼叫的工具、工具回傳、最後結論。不需打字。": "",
+    "同一個檔（RPM520C0005）在擁有者標註資料庫中的版本：": "The same file (RPM520C0005) in the owner's reference-labelled database:",
+    "開啟切段驗證頁 ctwa_mill #308 / open viewer session": "Open viewer session ctwa_mill #308",
+    "（reference-labelled version, with audio and band plots）。": "(reference-labelled version, with audio and band plots).",
+    "步驟": "Step"
+  },
+  rules: [
+    [/^步驟 (\d+) · 使用者提示 \/ User prompt$/, "Step $1 · User prompt"],
+    [/^執行中 \/ running step (\d+)$/, "running step $1"],
+    [/^重播 \/ Replay · [^\/]*\/ (.+)$/, "Replay · $1"],
+    [/^展開全部 \/ Expand full result \((\d+) chars\)$/, "Expand full result ($1 chars)"]
+  ],
+  phrases: {}
+};
+</script>
+
 <div class="wrap">
   <header>
-    <h1>MSM 正規化代理 · 一鍵展示 <span style="font-weight:400">/ MSM Normalizer Agent — One-click Demo</span></h1>
-    <p>點左邊任一步驟，頁面會把預先寫好的提示送給雲端 ADK 代理，右邊依序顯示它呼叫的工具、工具回傳、最後結論。不需打字。<br>
+    <h1><span data-i18n-zh-only>MSM 正規化代理 · 一鍵展示 <span style="font-weight:400">/ </span></span><span style="font-weight:400">MSM Normalizer Agent — One-click Demo</span></h1>
+    <p><span data-i18n-zh-only>點左邊任一步驟，頁面會把預先寫好的提示送給雲端 ADK 代理，右邊依序顯示它呼叫的工具、工具回傳、最後結論。不需打字。<br></span>
     Click a step on the left: the page sends a fixed prompt to the deployed ADK agent and streams its tool calls, tool results and conclusion on the right. No typing needed.</p>
   </header>
   <div class="cols">
@@ -201,7 +223,7 @@ function summarize(resp) {
   return "<pre>" + esc(s.slice(0, 600)) + "\n…</pre><details><summary>展開全部 / Expand full result (" + s.length + " chars)</summary><pre>" + esc(s) + "</pre></details>";
 }
 function errorCard(msg) {
-  card("err", "錯誤 / Error", "<div>" + esc(msg) + '</div><div class="tok">代理可能正在冷啟動，請稍候再試；或改用「重播已存紀錄」。The agent may be cold-starting; retry in ~30 s, or use “Replay saved run”.</div>');
+  card("err", "錯誤 / Error", '<div data-i18n-skip>' + esc(msg) + '</div><div class="tok">代理可能正在冷啟動，請稍候再試；或改用「重播已存紀錄」。The agent may be cold-starting; retry in ~30 s, or use “Replay saved run”.</div>');
 }
 
 function renderEvent(ev) {
