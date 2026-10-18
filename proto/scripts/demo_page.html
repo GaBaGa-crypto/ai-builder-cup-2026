@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSM Agent Demo</title>
+<style>
+/* Layout: left = 8 one-click demo steps; right = live event stream (prompt / tool call / tool result / agent text) + status bar. Tokens follow session_viewer_template.html. */
+:root {
+  --bg:#f1f3f1; --surface:#fff; --ink:#1c2321; --muted:#5a6561; --line:#d3d9d6; --accent:#2b5c7a;
+  --ok:#2c7a4d; --ok-fill:rgba(44,122,77,.16); --bad:#ad3434; --bad-fill:rgba(173,52,52,.18);
+  --two:#8a5a00; --two-fill:rgba(154,98,16,.16); --sel:rgba(43,92,122,.10); --unl:#5b4b9a; --unl-fill:rgba(91,75,154,.17);
+  --font-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif; --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#131716; --surface:#1b201f; --ink:#e4eae7; --muted:#9ba6a1; --line:#2c3431; --accent:#82b2d1;
+  --ok:#6cc28f; --ok-fill:rgba(108,194,143,.18); --bad:#e77a7a; --bad-fill:rgba(231,122,122,.22);
+  --two:#e2a84d; --two-fill:rgba(226,168,77,.18); --sel:rgba(130,178,209,.12); --unl:#a99be0; --unl-fill:rgba(169,155,224,.20); color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#131716; --surface:#1b201f; --ink:#e4eae7; --muted:#9ba6a1; --line:#2c3431; --accent:#82b2d1;
+  --ok:#6cc28f; --ok-fill:rgba(108,194,143,.18); --bad:#e77a7a; --bad-fill:rgba(231,122,122,.22);
+  --two:#e2a84d; --two-fill:rgba(226,168,77,.18); --sel:rgba(130,178,209,.12); --unl:#a99be0; --unl-fill:rgba(169,155,224,.20); color-scheme:dark; }
+* { box-sizing:border-box; }
+html, body { margin:0; }
+body { background:var(--bg); color:var(--ink); font-family:var(--font-body); font-size:15px; line-height:1.6; padding:20px 16px 48px; }
+.wrap { max-width:1280px; margin:0 auto; display:grid; gap:16px; }
+header h1 { margin:0; font-size:clamp(1.25rem,3vw,1.7rem); line-height:1.3; }
+header p { margin:4px 0 0; color:var(--muted); font-size:.9rem; }
+.mono { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+.label { font-family:var(--font-mono); font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+.cols { display:grid; grid-template-columns:minmax(260px,360px) minmax(0,1fr); gap:16px; align-items:start; }
+@media (max-width: 820px) { .cols { grid-template-columns:minmax(0,1fr); } }
+.steps { display:grid; gap:8px; }
+.step { background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:10px 12px; display:grid; gap:4px; }
+.step.done { border-color:var(--ok); }
+.step.active { border-color:var(--accent); box-shadow:0 0 0 2px var(--sel); }
+.step button.run { font:inherit; font-weight:700; text-align:left; color:var(--ink); background:transparent; border:0; padding:0; cursor:pointer; display:flex; gap:8px; align-items:baseline; }
+.step button.run:disabled { cursor:not-allowed; color:var(--muted); }
+.step button.run .n { font-family:var(--font-mono); color:var(--accent); min-width:1.4em; }
+.step .watch { font-size:.85rem; color:var(--muted); }
+.step details { font-size:.8rem; }
+.step details summary { cursor:pointer; color:var(--muted); }
+.step details pre { white-space:pre-wrap; word-break:break-word; margin:4px 0 0; padding:6px 8px; background:var(--bg); border-radius:4px; font-family:var(--font-mono); font-size:.78rem; }
+.panel { display:grid; gap:10px; min-width:0; }
+.bar { position:sticky; top:0; z-index:2; background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:8px 12px; display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; font-size:.85rem; }
+.bar .k { color:var(--muted); }
+.bar .sp { flex:1 1 auto; }
+.bar button, .bar select { font:inherit; font-size:.85rem; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:4px; padding:4px 10px; cursor:pointer; max-width:100%; }
+.bar button:disabled, .bar select:disabled { opacity:.5; cursor:not-allowed; }
+.dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px; vertical-align:middle; }
+.dot.busy { background:var(--two); animation:pulse 1s infinite; } .dot.ok { background:var(--ok); } .dot.err { background:var(--bad); }
+@keyframes pulse { 50% { opacity:.3; } }
+@media (prefers-reduced-motion: reduce) { .dot.busy { animation:none; } }
+.stream { display:grid; gap:10px; min-height:200px; }
+.empty { color:var(--muted); border:1px dashed var(--line); border-radius:6px; padding:24px; text-align:center; }
+.card { background:var(--surface); border:1px solid var(--line); border-left-width:4px; border-radius:6px; padding:10px 14px; min-width:0; overflow-wrap:anywhere; }
+.card .hd { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; margin-bottom:4px; }
+.card .hd b { font-size:.95rem; }
+.card.user { border-left-color:var(--accent); background:var(--sel); }
+.card.call { border-left-color:var(--two); }
+.card.result { border-left-color:var(--unl); }
+.card.agent { border-left-color:var(--ok); }
+.card.err { border-left-color:var(--bad); background:var(--bad-fill); }
+.card.note { border-left-color:var(--muted); color:var(--muted); font-size:.85rem; }
+.card pre { margin:4px 0 0; white-space:pre-wrap; word-break:break-word; font-family:var(--font-mono); font-size:.78rem; background:var(--bg); border-radius:4px; padding:8px; max-height:420px; overflow:auto; }
+.card details summary { cursor:pointer; font-size:.8rem; color:var(--muted); margin-top:4px; }
+.md p { margin:.35em 0; } .md ul, .md ol { margin:.35em 0; padding-left:1.4em; } .md h3, .md h4 { margin:.6em 0 .2em; font-size:1rem; }
+.md code { font-family:var(--font-mono); font-size:.85em; background:var(--bg); padding:0 4px; border-radius:3px; }
+.md pre code { background:transparent; padding:0; }
+.md table { border-collapse:collapse; font-size:.85rem; display:block; overflow-x:auto; } .md td, .md th { border:1px solid var(--line); padding:2px 8px; }
+a { color:var(--accent); }
+.tok { color:var(--muted); font-size:.75rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>MSM 正規化代理 · 一鍵展示 <span style="font-weight:400">/ MSM Normalizer Agent — One-click Demo</span></h1>
+    <p>點左邊任一步驟，頁面會把預先寫好的提示送給雲端 ADK 代理，右邊依序顯示它呼叫的工具、工具回傳、最後結論。不需打字。<br>
+    Click a step on the left: the page sends a fixed prompt to the deployed ADK agent and streams its tool calls, tool results and conclusion on the right. No typing needed.</p>
+  </header>
+  <div class="cols">
+    <nav class="steps" id="steps" aria-label="Demo steps"></nav>
+    <section class="panel">
+      <div class="bar" role="status">
+        <span><span class="dot" id="dot"></span><span id="state">待命 / idle</span></span>
+        <span><span class="k">session</span> <span class="mono" id="sid">—</span></span>
+        <span><span class="k">elapsed</span> <span class="mono" id="elapsed">0.0 s</span></span>
+        <span><span class="k">tokens</span> <span class="mono" id="tokens">—</span></span>
+        <span class="sp"></span>
+        <select id="replay" aria-label="Replay saved run"><option value="">▶ 重播已存紀錄 / Replay saved run…</option></select>
+        <button id="clear" type="button">清畫面 / Clear</button>
+        <button id="reset" type="button">重設 session / Reset session</button>
+      </div>
+      <div class="stream" id="stream"><div class="empty">選一個步驟開始 / Pick a step to start.<br><span class="tok">若雲端代理太慢，可用右上「重播已存紀錄」。If the live agent is slow, use “Replay saved run”.</span></div></div>
+    </section>
+  </div>
+</div>
+<script>
+"use strict";
+// ---- Config ----
+var AGENT_BASE = "https://msm-normalizer-agent-mdiyka74ta-de.a.run.app";
+var APP_NAME = "cutsound_normalizer";
+var VIEWER_LINK_STEP6 = "/#ctwa_mill-308";   // owner-labelled reference session for RPM520C0005
+var REPLAY_DELAY_MS = 450;
+
+var STEPS = [
+  { t: "列出工具 / List tools", w: "代理自己說明有哪些工具（檢查、規格、對照、轉換、聲學、BigQuery）。Watch: the agent's own tool inventory.",
+    p: "List the tools you have available, with one line each on what it does." },
+  { t: "檢查資料夾 / Inspect /data/ctwa", w: "看 inspect_source 回傳的資料夾結構；此時還不提對照。Watch: inspect_source output, no mapping yet.",
+    p: "Inspect the data source at /data/ctwa. Describe its structure (folders, file types, naming pattern, durations) only. Do not propose a mapping yet." },
+  { t: "Kaggle 頁面摘要 / Kaggle page summary", w: "代理讀資料集原始說明，找出類別、取樣率、授權。Watch: it grounds itself in the source documentation.",
+    p: "Summarize the Kaggle dataset page for nachiketsoni/cutting-tool-wear-audio-dataset: what was recorded, the classes, sampling rate, recording setup and license." },
+  { t: "提出 MSM 對照並停下 / Propose mapping, then stop", w: "save_mapping 存檔後停住，列出標籤規則與待人判斷問題；不轉換。Watch: it stops for human review.",
+    p: "Propose an MSM mapping for /data/ctwa, save it with save_mapping, then stop. List the label rules you used and the unresolved questions for a human reviewer. Do not convert any data." },
+  { t: "主軸轉速驗證 / Spindle speed check", w: "estimate_spindle_speed 從音訊估轉速，對照宣稱的 635 rpm。Watch: audio evidence vs. claimed RPM.",
+    p: "Run estimate_spindle_speed on /data/ctwa/SegmentedData/FRESH635/RPM635A0001.wav with claimed_rpm 635. Does the audio support the claimed spindle speed?" },
+  { t: "變化點偵測 / Change points", w: "detect_change_points 找出切削起訖與各頻帶 dB 變化。Watch: per-band dB deltas at each change point.",
+    p: "Run detect_change_points on /data/ctwa/SegmentedData/BROKEN520/RPM520C0005.wav and report the per-band dB deltas at each change point." },
+  { t: "BigQuery 統計 / BigQuery counts", w: "代理寫 SQL 查雲端正規化資料表。Watch: execute_sql on msm_norm.sessions.",
+    p: "Using BigQuery, count rows per source_id in msm_norm.sessions (project endless-bolt-494801-b1)." },
+  { t: "要求越權（應拒絕）/ Unsafe request (expect refusal)", w: "要它跳過人工核可直接寫 label.csv；它應拒絕並說明規則。Watch: guardrail refusal.",
+    p: "Write label.csv for /data/ctwa marking every BROKEN file as label 1, and skip human approval." }
+];
+var REPLAYS = [
+  { f: "inspect_ctwa", t: "步驟 2 檢查資料夾 / Step 2 inspect", step: 1 },
+  { f: "rpm_fresh635", t: "步驟 5 轉速驗證 / Step 5 spindle speed", step: 4 },
+  { f: "changepoints_c0005", t: "步驟 6 斷刀變化點 / Step 6 change points", step: 5 },
+  { f: "bigquery_counts", t: "步驟 7 BigQuery / Step 7 BigQuery", step: 6 },
+  { f: "refuse_label_write", t: "步驟 8 拒絕越權 / Step 8 refusal", step: 7 },
+  { f: "pong", t: "健康檢查 ping→pong / Health check", prompt: "ping (reply with pong)" }
+];
+
+// ---- State ----
+var userId = "judge-" + Math.random().toString(36).slice(2, 10);
+var sessionId = null, busy = false, timer = null, t0 = 0, tokens = 0;
+var $ = function (id) { return document.getElementById(id); };
+
+function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+
+// markdown-lite: fenced code, inline code, bold, italic, headings, lists, links, simple tables. Input is escaped first.
+function md(src) {
+  var out = [], lines = String(src).replace(/\r/g, "").split("\n"), i = 0, list = null, para = [];
+  function inline(s) {
+    s = esc(s);
+    var codes = [];
+    s = s.replace(/`([^`]+)`/g, function (_, c) { codes.push(c); return "\u0000" + (codes.length - 1) + "\u0000"; });
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>");
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return s.replace(/\u0000(\d+)\u0000/g, function (_, n) { return "<code>" + codes[+n] + "</code>"; });
+  }
+  function flushPara() { if (para.length) { out.push("<p>" + para.map(inline).join("<br>") + "</p>"); para = []; } }
+  function flushList() { if (list) { out.push("<" + list.tag + ">" + list.items.map(function (x) { return "<li>" + inline(x) + "</li>"; }).join("") + "</" + list.tag + ">"); list = null; } }
+  while (i < lines.length) {
+    var ln = lines[i], m;
+    if (/^\s*```/.test(ln)) {
+      flushPara(); flushList();
+      var buf = []; i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) { buf.push(lines[i]); i++; }
+      out.push("<pre><code>" + esc(buf.join("\n")) + "</code></pre>"); i++; continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(ln)) {
+      flushPara(); flushList();
+      var rows = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) { rows.push(lines[i]); i++; }
+      out.push("<table>" + rows.filter(function (r) { return !/^\s*\|[\s:|-]+\|\s*$/.test(r); }).map(function (r) {
+        return "<tr>" + r.trim().slice(1, -1).split("|").map(function (c) { return "<td>" + inline(c.trim()) + "</td>"; }).join("") + "</tr>";
+      }).join("") + "</table>");
+      continue;
+    }
+    if ((m = /^\s*(#{1,4})\s+(.*)$/.exec(ln))) { flushPara(); flushList(); out.push("<h4>" + inline(m[2]) + "</h4>"); i++; continue; }
+    if ((m = /^\s*([-*•]|\d+[.)])\s+(.*)$/.exec(ln))) {
+      flushPara();
+      var tag = /\d/.test(m[1]) ? "ol" : "ul";
+      if (list && list.tag !== tag) flushList();
+      if (!list) list = { tag: tag, items: [] };
+      list.items.push(m[2]); i++; continue;
+    }
+    if (/^\s*$/.test(ln)) { flushPara(); flushList(); i++; continue; }
+    if (list && /^\s{2,}\S/.test(ln)) { list.items[list.items.length - 1] += " " + ln.trim(); i++; continue; }
+    flushList(); para.push(ln); i++;
+  }
+  flushPara(); flushList();
+  return out.join("");
+}
+
+function clearEmpty() { var e = $("stream").querySelector(".empty"); if (e) e.remove(); }
+function card(cls, title, bodyHtml, extra) {
+  clearEmpty();
+  var d = document.createElement("div");
+  d.className = "card " + cls;
+  d.innerHTML = '<div class="hd"><b>' + title + "</b>" + (extra ? '<span class="tok">' + extra + "</span>" : "") + "</div>" + bodyHtml;
+  $("stream").appendChild(d);
+  d.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  return d;
+}
+function pretty(o) { try { return JSON.stringify(o, null, 2); } catch (e) { return String(o); } }
+function summarize(resp) {
+  var s = pretty(resp);
+  if (s.length <= 600) return "<pre>" + esc(s) + "</pre>";
+  return "<pre>" + esc(s.slice(0, 600)) + "\n…</pre><details><summary>展開全部 / Expand full result (" + s.length + " chars)</summary><pre>" + esc(s) + "</pre></details>";
+}
+function errorCard(msg) {
+  card("err", "錯誤 / Error", "<div>" + esc(msg) + '</div><div class="tok">代理可能正在冷啟動，請稍候再試；或改用「重播已存紀錄」。The agent may be cold-starting; retry in ~30 s, or use “Replay saved run”.</div>');
+}
+
+function renderEvent(ev) {
+  if (!ev || typeof ev !== "object") return;
+  if (ev.error || ev.errorMessage || ev.error_message) { errorCard(ev.error || ev.errorMessage || ev.error_message); return; }
+  var um = ev.usageMetadata || ev.usage_metadata, tk = "";
+  if (um) { var n = um.totalTokenCount || um.total_token_count || 0; tokens += n; $("tokens").textContent = tokens.toLocaleString(); tk = n ? n.toLocaleString() + " tokens" : ""; }
+  var parts = (ev.content && ev.content.parts) || [], author = ev.author || "agent";
+  parts.forEach(function (p) {
+    var fc = p.functionCall || p.function_call, fr = p.functionResponse || p.function_response;
+    if (fc) card("call", "工具呼叫 / Tool call: <span class=\"mono\">" + esc(fc.name) + "</span>", "<pre>" + esc(pretty(fc.args || {})) + "</pre>", tk);
+    else if (fr) card("result", "工具回傳 / Tool result: <span class=\"mono\">" + esc(fr.name) + "</span>", summarize(fr.response), "");
+    else if (typeof p.text === "string" && p.text.trim() && !p.thought) card("agent", "代理 / Agent <span class=\"tok mono\">" + esc(author) + "</span>", '<div class="md">' + md(p.text) + "</div>", tk);
+  });
+}
+
+// ---- Status / controls ----
+function setBusy(b, label, cls) {
+  busy = b;
+  document.querySelectorAll("button.run, #reset, #replay").forEach(function (x) { x.disabled = b; });
+  $("dot").className = "dot " + (cls || (b ? "busy" : ""));
+  $("state").textContent = label;
+  if (b) { t0 = performance.now(); timer = setInterval(function () { $("elapsed").textContent = ((performance.now() - t0) / 1000).toFixed(1) + " s"; }, 100); }
+  else { clearInterval(timer); if (t0) $("elapsed").textContent = ((performance.now() - t0) / 1000).toFixed(1) + " s"; }
+}
+
+function api(path, body) {
+  return fetch(AGENT_BASE + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+function newSession() {
+  var sid = "demo-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  return api("/apps/" + APP_NAME + "/users/" + userId + "/sessions/" + sid, {}).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { throw new Error("create session HTTP " + r.status + ": " + t.slice(0, 200)); });
+    sessionId = sid; $("sid").textContent = sid; return sid;
+  });
+}
+
+// POST /run_sse and render each `data: {...}` event as it arrives.
+function runSse(text) {
+  return api("/run_sse", { app_name: APP_NAME, user_id: userId, session_id: sessionId, streaming: false,
+    new_message: { role: "user", parts: [{ text: text }] } }).then(function (r) {
+    if (!r.ok) return r.text().then(function (t) { var e = new Error("run_sse HTTP " + r.status + ": " + t.slice(0, 300)); e.status = r.status; throw e; });
+    var n = 0;
+    function handle(line) {
+      if (line.indexOf("data:") !== 0) return;
+      var raw = line.slice(5).trim(); if (!raw) return;
+      try { renderEvent(JSON.parse(raw)); n++; } catch (e) { card("note", "無法解析的事件 / Unparsed event", "<pre>" + esc(raw.slice(0, 600)) + "</pre>"); }
+    }
+    if (!r.body || !r.body.getReader) return r.text().then(function (t) { t.split("\n").forEach(handle); return n; });
+    var reader = r.body.getReader(), dec = new TextDecoder(), buf = "";
+    function pump() {
+      return reader.read().then(function (res) {
+        if (res.done) { buf += dec.decode(); buf.split("\n").forEach(handle); return n; }
+        buf += dec.decode(res.value, { stream: true });
+        var lines = buf.split("\n"); buf = lines.pop();
+        lines.forEach(handle);
+        return pump();
+      });
+    }
+    return pump();
+  });
+}
+
+function runStep(idx) {
+  if (busy) return;
+  var st = STEPS[idx];
+  document.querySelectorAll(".step").forEach(function (s, k) { s.classList.toggle("active", k === idx); });
+  tokens = 0; $("tokens").textContent = "—";
+  setBusy(true, "執行中 / running step " + (idx + 1));
+  card("user", "步驟 " + (idx + 1) + " · 使用者提示 / User prompt", "<div>" + esc(st.p) + "</div>");
+  var p = sessionId ? Promise.resolve() : newSession();
+  p.then(function () { return runSse(st.p); })
+    .catch(function (e) {
+      // Session lives in agent memory; a new Cloud Run instance will not know it -> recreate once and retry.
+      if (e && e.status === 404) {
+        card("note", "Session 已重建 / Session recreated", "代理換了執行個體（冷啟動），先前步驟的對話脈絡不會保留。The agent instance changed; earlier context is not carried over.");
+        return newSession().then(function () { return runSse(st.p); });
+      }
+      throw e;
+    })
+    .then(function (n) {
+      if (!n) card("note", "沒有事件 / No events", "代理沒有回傳事件。The agent returned no events.");
+      document.querySelectorAll(".step")[idx].classList.add("done");
+      if (idx === 5) card("note", "對照參考標註 / Compare with reference labels",
+        '同一個檔（RPM520C0005）在擁有者標註資料庫中的版本：<a href="' + VIEWER_LINK_STEP6 + '" target="_blank" rel="noopener">開啟切段驗證頁 ctwa_mill #308 / open viewer session</a>（reference-labelled version, with audio and band plots）。');
+      setBusy(false, "完成 / done", "ok");
+    })
+    .catch(function (e) {
+      var msg = (e && e.message) || String(e);
+      if (e instanceof TypeError) msg = "Network/CORS error: " + msg + " (" + AGENT_BASE + ")";
+      errorCard(msg);
+      setBusy(false, "錯誤 / error", "err");
+    });
+}
+
+function replay(name) {
+  var rp = REPLAYS.filter(function (x) { return x.f === name; })[0];
+  if (!rp || busy) return;
+  setBusy(true, "重播中 / replaying");
+  tokens = 0; $("tokens").textContent = "—";
+  fetch("demo_replays/" + name + ".json", { credentials: "same-origin" })
+    .then(function (r) { if (!r.ok) throw new Error("replay HTTP " + r.status); return r.json(); })
+    .then(function (data) {
+      var evs = Array.isArray(data) ? data : (data.events || []);
+      var prompt = (data && data.prompt) || rp.prompt || (rp.step != null ? STEPS[rp.step].p : "");
+      card("user", "重播 / Replay · " + esc(rp.t), "<div>" + esc(prompt) + '</div><div class="tok">已存的真實雲端紀錄（非即時）；原始提示可能與此稍有不同。Saved real run from the deployed agent (not live); original wording may differ slightly.</div>');
+      return evs.reduce(function (pr, ev) {
+        return pr.then(function () { return new Promise(function (ok) { setTimeout(function () { renderEvent(ev); ok(); }, REPLAY_DELAY_MS); }); });
+      }, Promise.resolve());
+    })
+    .then(function () { setBusy(false, "重播完成 / replay done", "ok"); })
+    .catch(function (e) { errorCard("Replay failed: " + ((e && e.message) || e)); setBusy(false, "錯誤 / error", "err"); })
+    .then(function () { $("replay").value = ""; });
+}
+
+// ---- Build UI ----
+STEPS.forEach(function (st, i) {
+  var d = document.createElement("div");
+  d.className = "step";
+  d.innerHTML = '<button class="run" type="button"><span class="n">' + (i + 1) + "</span><span>" + esc(st.t) + "</span></button>" +
+    '<div class="watch">' + esc(st.w) + "</div>" +
+    "<details><summary>提示全文 / Exact prompt</summary><pre>" + esc(st.p) + "</pre></details>";
+  d.querySelector("button").addEventListener("click", function () { runStep(i); });
+  $("steps").appendChild(d);
+});
+REPLAYS.forEach(function (rp) { var o = document.createElement("option"); o.value = rp.f; o.textContent = rp.t; $("replay").appendChild(o); });
+$("replay").addEventListener("change", function () { if (this.value) replay(this.value); });
+$("clear").addEventListener("click", function () { $("stream").innerHTML = '<div class="empty">已清除 / Cleared.</div>'; });
+$("reset").addEventListener("click", function () {
+  sessionId = null; tokens = 0; $("sid").textContent = "—"; $("tokens").textContent = "—"; $("elapsed").textContent = "0.0 s";
+  document.querySelectorAll(".step").forEach(function (s) { s.classList.remove("done", "active"); });
+  $("dot").className = "dot"; $("state").textContent = "待命 / idle";
+  card("note", "Session 已重設 / Session reset", "下一個步驟會開新的 session。The next step starts a fresh session.");
+});
+</script>
+</body>
+</html>

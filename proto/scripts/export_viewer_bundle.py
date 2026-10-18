@@ -9,12 +9,16 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from concurrent.futures import ProcessPoolExecutor
 
 import soundfile as sf
 
 from msm_io import read_wav_int16
 from session_viewer import build_payload, is_sealed, render_page, session_listing, to_json, wav_paths, write_mp3
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+from refresh_demo_page import copy_demo_assets  # noqa: E402  judges' /demo page + saved replays
 
 
 def encode(job):
@@ -58,6 +62,8 @@ def main():
         json.dump(listing, fh, ensure_ascii=False)
     with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(render_page("MSM 切段驗證", "null"))
+    copied, missing = copy_demo_assets(out)
+    print(f"demo page + {len(copied)} replays" + (f"; missing {missing}" if missing else ""))
 
     files = []
     for dp, _, fs in os.walk(out):

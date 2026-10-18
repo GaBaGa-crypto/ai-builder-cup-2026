@@ -28,6 +28,12 @@ API_KEY_SECRET=${API_KEY_SECRET:-gemini-api-key}
 MODEL_LOCATION=${MODEL_LOCATION:-global}
 NORMALIZER_MODEL=${NORMALIZER_MODEL:-gemini-3.8-flash}
 DATA_BUCKET=${DATA_BUCKET:-}
+# ALLOW_ORIGINS=<origin,origin,...>：給示範頁（/demo）跨來源呼叫用的 CORS 白名單；空值＝不開
+ALLOW_ARGS=()
+if [ -n "${ALLOW_ORIGINS:-}" ]; then
+  IFS=',' read -r -a _origins <<< "$ALLOW_ORIGINS"
+  for _o in "${_origins[@]}"; do ALLOW_ARGS+=(--allow_origins "$_o"); done
+fi
 BQ_WRITE=${BQ_WRITE:-0}
 ADK_VERSION=2.11.0           # 與 agent/requirements.txt 的 google-adk 釘版一致
 APP_NAME=cutsound_normalizer # ADK app 名＝資料夾名＝Python 套件名（__init__.py 用相對匯入）
@@ -206,6 +212,7 @@ echo "== 部署 Cloud Run 服務 $SERVICE（ADK $ADK_VERSION，含 Web UI）"
   --project "$PROJECT" --region "$REGION" \
   --service_name "$SERVICE" --app_name "$APP_NAME" \
   --adk_version "$ADK_VERSION" --with_ui --log_level info \
+  "${ALLOW_ARGS[@]}" \
   "${EXTRA_ENV[@]}" \
   "$(to_native "$STAGE")" \
   -- \

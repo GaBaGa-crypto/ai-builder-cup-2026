@@ -22,6 +22,7 @@ from http_range import send_bytes, send_file
 COOKIE = "msm_viewer"
 PAYLOAD_RE = re.compile(r"[a-z0-9_]+")
 AUDIO_RE = re.compile(r"/audio/([a-z0-9]+_[0-9a-f]{6})/(s[012])\.mp3")
+REPLAY_RE = re.compile(r"/demo_replays/([a-z0-9_-]+)\.json")
 DENIED = """<!doctype html><meta charset="utf-8"><title>需要存取碼</title>
 <body style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 16px;line-height:1.6">
 <h1 style="font-size:1.3rem">需要存取碼</h1><p>這是 MSM 切段驗證頁。請使用完整的分享網址（結尾是 <code>?k=…</code>）開啟。</p></body>""".encode()
@@ -70,6 +71,11 @@ def make_handler(bundle, token):
             # 頁面與 JSON 不快取（重新部署後立刻看到新版）；只有音檔走 send_file 的快取與 Range
             if u.path in ("/", "/index.html"):
                 return send_bytes(self, open(inside("index.html"), "rb").read(), "text/html; charset=utf-8")
+            if u.path in ("/demo", "/demo.html") and inside("demo_page.html"):
+                return send_bytes(self, open(inside("demo_page.html"), "rb").read(), "text/html; charset=utf-8")
+            mr = REPLAY_RE.fullmatch(u.path)
+            if mr and inside("demo_replays", mr.group(1) + ".json"):
+                return send_bytes(self, open(inside("demo_replays", mr.group(1) + ".json"), "rb").read(), "application/json; charset=utf-8")
             if u.path == "/api/sessions":
                 return send_bytes(self, open(inside("sessions.json"), "rb").read(), "application/json; charset=utf-8")
             if u.path == "/api/session":

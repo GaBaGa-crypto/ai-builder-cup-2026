@@ -27,3 +27,16 @@
 | HTTP Range 回應 | session_viewer_app.py 的 `send_wav` | **抽出** 成 stdlib 模組 `http_range.py`，本機模組與雲端伺服器共用 |
 | MP3 編碼 | session_viewer.py `main()` 的 soundfile MP3 段 | 抽成 `write_mp3()` 共用 |
 | 資料包匯出、雲端伺服器、Dockerfile、部署腳本 | 無 | 新建 `export_viewer_bundle.py`、`viewer_bundle_server.py`、`deploy/` |
+
+## v2 /demo：評審一鍵展示頁（2026-10-18，GDemo）
+- 頁面 `proto/scripts/demo_page.html`（單檔、無外部 CDN、中英雙語）：左欄 8 個固定提示步驟，右欄把 ADK 代理事件依序畫成卡片（使用者提示／工具呼叫＋參數／工具回傳摘要 600 字＋展開／代理文字 markdown-lite），狀態列顯示 session、經過秒數、tokens。設定在檔頭 `AGENT_BASE`、`APP_NAME`。
+- 伺服器 `viewer_bundle_server.py` 新增 `/demo`、`/demo.html`（讀資料包根目錄 `demo_page.html`）與 `/demo_replays/<name>.json`（name 須符合 `[a-z0-9_-]+`，唯讀）。
+- 資料包：`export_viewer_bundle.py` 匯出時一併複製；只更新頁面用 `scripts/refresh_demo_page.py --bundle DIR`（不重轉 MP3）。重播檔 5 個：inspect_ctwa、rpm_fresh635、bigquery_counts、refuse_label_write、pong（皆為雲端代理真實輸出）。
+- **D1 存取碼一致**：無碼或錯碼開 `/demo` → 401；`/demo?k=正確碼` → 303 設 cookie 後 200；`/demo_replays/*.json` 無 cookie → 401。
+- **D2 重播路徑安全**：`/demo_replays/../sessions.json`、`%2e%2e%2f…`、大寫名、不存在名、非 .json → 404。
+- **D3 重播模式**：選「重播已存紀錄」→ 不連代理，逐筆（每 0.45 秒）畫出已存事件；步驟按鈕與重設在重播期間停用；結束後回到可操作。
+- **D4 即時模式**：第一次按步驟 → 建 session（user `judge-<亂數>`）→ POST `/run_sse`（`streaming:false`）→ 每個 `data:` 事件到達即畫卡片；同一頁面所有步驟共用同一 session；執行中所有步驟鈕停用；「重設 session」後下一步開新 session。
+- **D5 換執行個體**：`/run_sse` 回 404（記憶體 session 不在新執行個體）→ 顯示灰色提示卡、自動重建 session 重試一次。
+- **D6 錯誤卡**：網路／CORS 失敗或非 2xx → 紅卡顯示錯誤與「代理可能正在冷啟動，請稍候再試；或改用重播」，狀態燈轉紅，按鈕恢復可按。
+- **D7 對照連結**：步驟 6（RPM520C0005 變化點）完成後出現連結 `/#ctwa_mill-308`，開啟擁有者標註版的同一檔切段頁。
+- **D8 CORS 前提**：代理須以 `--allow_origins` 允許 viewer 網址與 `http://localhost:8080`／`http://127.0.0.1:8080`，否則即時模式只會出 D6 紅卡（重播模式不受影響）。
