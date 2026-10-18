@@ -199,7 +199,7 @@ class BoundaryWindow(BaseModel):
 class ProposalFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
     proposal_version: str = "0.1"
-    source_id: str
+    source_id: str = Field(pattern=r"^[a-z0-9_-]{1,64}$")
     source_dir: Optional[str] = None
     mode: Literal["label_candidates", "consistency_only"] = Field(
         description="consistency_only for sources that already carry labels (MSM label.csv): no candidate_label at all")
@@ -744,7 +744,12 @@ def save_proposals(proposals_json: str) -> dict:
     pf.summary = _counts_line(pf.counts) + " " + _COUNTS_PREFIX.sub("", pf.summary or "").strip()
     pf.created_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
     pf.model = pf.model or MODEL_NAME or os.environ.get("NORMALIZER_MODEL")
-    p = work_dir() / "proposals" / f"{pf.source_id}.json"
+    base = work_dir()
+    p = base / "proposals" / f"{pf.source_id}.json"
+    try:
+        p.resolve().relative_to(base.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return {"status": "invalid", "errors": "destination not allowed"}
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(pf.model_dump_json(indent=1), encoding="utf-8")
     out = {"status": "saved_pending_approval", "path": str(p), "n_proposals": len(pf.proposals),

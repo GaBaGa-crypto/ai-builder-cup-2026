@@ -14,7 +14,7 @@
 #   MODEL_LOCATION=global        Vertex AI 端點位置（Gemini 3.x 走 global；與 Cloud Run 區域無關）
 #   NORMALIZER_MODEL=gemini-3.8-flash
 #   DATA_BUCKET=<bucket>         可選：唯讀掛載到容器 /data，讓 inspect_source 能讀雲端資料夾
-#   BQ_WRITE=1                   可選：多給 bigquery.dataEditor，讓雲端的 load_tables 能寫表（預設唯讀）
+#   BQ_WRITE=1                   可選：在兩個 dataset ACL 給 WRITER，讓 load_tables 能寫表（預設唯讀）
 #   STAGE_DIR=<dir>              可選：上傳內容的組裝目錄（預設 mktemp；--stage-only 時保留供檢查）
 #   ADK=<adk 執行檔>             預設：PATH 上的 adk，否則 Anaconda audio_preject 環境的 adk.exe
 # 重跑安全：API 啟用、服務帳號、IAM 綁定都是「已存在就略過／重複綁定無副作用」，部署會產生新 revision。
@@ -28,12 +28,9 @@ API_KEY_SECRET=${API_KEY_SECRET:-gemini-api-key}
 MODEL_LOCATION=${MODEL_LOCATION:-global}
 NORMALIZER_MODEL=${NORMALIZER_MODEL:-gemini-3.8-flash}
 DATA_BUCKET=${DATA_BUCKET:-}
-# ALLOW_ORIGINS=<origin,origin,...>：給示範頁（/demo）跨來源呼叫用的 CORS 白名單；空值＝不開
+# ALLOW_ORIGIN=<https-origin>：示範頁（/demo）的單一 CORS 來源；--public 時必填
+ALLOW_ORIGIN=${ALLOW_ORIGIN:-${ALLOW_ORIGINS:-}}
 ALLOW_ARGS=()
-if [ -n "${ALLOW_ORIGINS:-}" ]; then
-  IFS=',' read -r -a _origins <<< "$ALLOW_ORIGINS"
-  for _o in "${_origins[@]}"; do ALLOW_ARGS+=(--allow_origins "$_o"); done
-fi
 BQ_WRITE=${BQ_WRITE:-0}
 ADK_VERSION=2.11.0           # 與 agent/requirements.txt 的 google-adk 釘版一致
 APP_NAME=cutsound_normalizer # ADK app 名＝資料夾名＝Python 套件名（__init__.py 用相對匯入）
@@ -49,6 +46,22 @@ for a in "$@"; do
   esac
 done
 case "$AUTH_MODE" in vertex|apikey) ;; *) echo "AUTH_MODE 只能是 vertex 或 apikey" >&2; exit 2 ;; esac
+case "$BQ_WRITE" in 0|1) ;; *) echo "BQ_WRITE 只能是 0 或 1" >&2; exit 2 ;; esac
+if [ -n "$ALLOW_ORIGIN" ]; then
+  case "$ALLOW_ORIGIN" in
+    *,*|*' '*) echo "ALLOW_ORIGIN 只允許一個不含空白的 origin" >&2; exit 2 ;;
+    https://*) ALLOW_ARGS=(--allow_origins "$ALLOW_ORIGIN") ;;
+    *) echo "ALLOW_ORIGIN 必須是 https origin" >&2; exit 2 ;;
+  esac
+fi
+if [ "$PUBLIC" = 1 ] && [ -z "$ALLOW_ORIGIN" ]; then
+  echo "--public 需要 ALLOW_ORIGIN=https://<viewer-host>，並且只能設一個 origin" >&2
+  exit 2
+fi
+if [ "$PUBLIC" = 1 ] && [ "$BQ_WRITE" = 1 ]; then
+  echo "公開服務不可啟用 BQ_WRITE=1" >&2
+  exit 2
+fi
 
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 SRC="$REPO/agent/$APP_NAME"
@@ -163,11 +176,88 @@ retry_bind() {
 }
 
 # 最小權限：呼叫 Gemini（Vertex AI）＋ BigQuery 唯讀查詢（代理人的 BigQueryToolset 是 WriteMode.BLOCKED）
-ROLES="roles/aiplatform.user roles/bigquery.jobUser roles/bigquery.dataViewer"
-[ "$BQ_WRITE" = 1 ] && ROLES="$ROLES roles/bigquery.dataEditor"
-for r in $ROLES; do
+PROJECT_ROLES="roles/aiplatform.user roles/bigquery.jobUser"
+for r in $PROJECT_ROLES; do
   retry_bind "$r（專案層級）" gcloud projects add-iam-policy-binding "$PROJECT" \
     --member="serviceAccount:$SA" --role="$r" --condition=None --quiet
+done
+
+command -v bq >/dev/null 2>&1 || { echo "找不到 bq，請安裝 Google Cloud SDK BigQuery 元件" >&2; exit 1; }
+ACL_PYTHON_OVERRIDE=${ACL_PYTHON:-}
+ACL_PYTHON_CANDIDATES=()
+[ -n "$ACL_PYTHON_OVERRIDE" ] && ACL_PYTHON_CANDIDATES+=("$ACL_PYTHON_OVERRIDE")
+ACL_PYTHON_CANDIDATES+=("$HOME/AppData/Local/anaconda3/envs/audio_preject/python.exe" python python3)
+ACL_PYTHON=
+for p in "${ACL_PYTHON_CANDIDATES[@]}"; do
+  if "$p" -c 'import json' >/dev/null 2>&1; then ACL_PYTHON=$p; break; fi
+done
+if [ -z "$ACL_PYTHON" ]; then
+  echo "找不到 Python，無法安全更新 BigQuery dataset ACL" >&2
+  exit 1
+fi
+
+# bq 在 Windows 會用系統字碼頁（cp950）讀自己的輸出，遇到 UTF-8 描述會當掉；強制 UTF-8
+export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
+# READER 只給 msm_norm（匿名代理人不得讀 provenance：來源路徑與雜湊）；BQ_WRITE=1 時兩個 dataset 都給 WRITER
+for BQ_DATASET in msm_norm msm_provenance; do
+  BQ_ACL_JSON="$STAGE_ROOT/${BQ_DATASET}.dataset.json"
+  echo "== 讀取並調整 BigQuery dataset ACL：${PROJECT}:${BQ_DATASET}"
+  if ! bq show --format=prettyjson --project_id="$PROJECT" "${PROJECT}:${BQ_DATASET}" > "$BQ_ACL_JSON"; then
+    echo "   WARNING: dataset ${PROJECT}:${BQ_DATASET} 不存在或無法讀取；略過 ACL" >&2
+    continue
+  fi
+  ACL_RESULT=$("$ACL_PYTHON" -c '
+import json
+import sys
+
+path, service_account, write_enabled, dataset_name = sys.argv[1:]
+with open(path, encoding="utf-8") as fh:
+    dataset = json.load(fh)
+access = dataset.get("access") or []
+dataset["access"] = access
+actions = []
+
+def has(role):
+    return any(entry.get("role") == role and entry.get("userByEmail") == service_account for entry in access)
+
+if dataset_name == "msm_norm" and not has("READER"):
+    access.append({"role": "READER", "userByEmail": service_account})
+    actions.append("added READER")
+if write_enabled == "1":
+    if not has("WRITER"):
+        access.append({"role": "WRITER", "userByEmail": service_account})
+        actions.append("added WRITER (dataset dataEditor)")
+else:
+    kept = [entry for entry in access if not (
+        entry.get("role") == "WRITER" and entry.get("userByEmail") == service_account)]
+    if len(kept) != len(access):
+        dataset["access"] = access = kept
+        actions.append("removed WRITER")
+
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(dataset, fh, ensure_ascii=False, indent=2)
+    fh.write("\n")
+print(", ".join(actions) if actions else "unchanged")
+' "$BQ_ACL_JSON" "$SA" "$BQ_WRITE" "$BQ_DATASET")
+  if [ "$ACL_RESULT" = unchanged ]; then
+    echo "   $BQ_DATASET ACL unchanged (WRITER matches BQ_WRITE=$BQ_WRITE)"
+  else
+    bq update --source "$BQ_ACL_JSON" --project_id="$PROJECT" "${PROJECT}:${BQ_DATASET}"
+    echo "   $BQ_DATASET ACL updated for $SA: $ACL_RESULT"
+  fi
+done
+
+# Remove direct broad bindings left by older versions of this script; absence is already the desired state.
+for broad_role in roles/bigquery.dataViewer roles/bigquery.dataEditor; do
+  if gcloud projects get-iam-policy "$PROJECT" --flatten='bindings[].members' \
+      --filter="bindings.role=$broad_role AND bindings.members=serviceAccount:$SA" \
+      --format='value(bindings.role)' | grep -Fxq "$broad_role"; then
+    gcloud projects remove-iam-policy-binding "$PROJECT" --member="serviceAccount:$SA" \
+      --role="$broad_role" --condition=None --quiet
+    echo "   已移除 $broad_role（專案層級）"
+  else
+    echo "   $broad_role（專案層級）原本即未授予"
+  fi
 done
 
 # MSYS/Git Bash would rewrite "/tmp/..." and "/data" into Windows paths before gcloud sees them; disable that here.

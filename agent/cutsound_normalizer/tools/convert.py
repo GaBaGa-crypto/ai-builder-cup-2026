@@ -24,11 +24,14 @@ import glob
 import hashlib
 import json
 import math
+import os
 import re
 from pathlib import Path
 from typing import Optional
 
 from ..mapping_schema import Mapping
+from ..proposals import work_dir
+from ._paths import resolve_under_data_root, resolve_under_roots
 from .audio import normalize_audio, segment_stats
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "spec" / "msm_spec.json"
@@ -38,6 +41,7 @@ LABEL_COLS = ["start", "end", "label", "direction", "N", "ap", "ae", "F", "Z", "
 MACHINE_SHORT_RE = re.compile(r"^[a-z0-9]+$")
 DOMAIN_BY_FIELD = {"lab": "lab", "industry": "line", "unknown": "unknown"}
 SOURCE_DATASET_RE = re.compile(r"dataset([1-9][0-9]*)")  # msm_session: the source folder name gives N
+SOURCE_ID_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 UNLABELED_COLS = ["start", "end", "cut_state"]
 UNLABELED_CUT_STATES = ("cutting", "unknown")  # non_cutting stays a gap (no row anywhere)
 UNLABELED_SUFFIX = "_unlabeled.csv"
@@ -140,8 +144,22 @@ def convert_source(source_dir: str, mapping_path: str, out_dir: str, limit: Opti
     Returns:
         Summary with counts per label, warnings, and manifest paths.
     """
+    try:
+        safe_mapping_path = resolve_under_roots(
+            mapping_path, (work_dir(), os.environ.get("NORMALIZER_DATA_ROOT", "")))
+        safe_source_dir = resolve_under_data_root(source_dir)
+        safe_out_dir = resolve_under_roots(out_dir, (work_dir(),))
+    except ValueError as e:
+        return {"error": str(e)}
+    try:
+        mapping_data = json.loads(safe_mapping_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"error": f"mapping file unreadable or not JSON: {safe_mapping_path.name}"}
+    source_id = mapping_data.get("source_id") if isinstance(mapping_data, dict) else None
+    if not isinstance(source_id, str) or not SOURCE_ID_RE.fullmatch(source_id):
+        return {"error": "invalid source_id: must match ^[a-z0-9_-]{1,64}$"}
     spec = _spec()
-    mapping = Mapping.model_validate_json(Path(mapping_path).read_text(encoding="utf-8"))
+    mapping = Mapping.model_validate(mapping_data)
     if mapping.unresolved and not approved_by:
         return {"error": "mapping has unresolved questions and no approver; resolve or approve first",
                 "unresolved": mapping.unresolved}
@@ -150,7 +168,7 @@ def convert_source(source_dir: str, mapping_path: str, out_dir: str, limit: Opti
     if not MACHINE_SHORT_RE.fullmatch(machine_short):
         return {"error": f"machine.machine_id {m.machine_id!r} gives an empty machine_short; "
                          "it must contain at least one character in [a-z0-9]"}
-    src_root, out_root = Path(source_dir), Path(out_dir) / mapping.source_id
+    src_root, out_root = safe_source_dir, safe_out_dir / mapping.source_id
     files = sorted(f for f in glob.glob(str(src_root / mapping.session_rule.audio_glob), recursive=True)
                    if not _skipped(Path(f).relative_to(src_root).as_posix()))
     if limit:

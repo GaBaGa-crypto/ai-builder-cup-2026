@@ -4,16 +4,20 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import re
 from pathlib import Path
 
 import soundfile as sf
 
+from ..proposals import work_dir
+from ._paths import resolve_under_roots
 from .convert import (LABEL_COLS, MACHINE_SHORT_RE, SOURCE_DATASET_RE, UNLABELED_COLS, UNLABELED_CUT_STATES,
                        UNLABELED_SUFFIX)
 
 LEAK_FIELDS = {"program_name", "block_number", "tool_number", "part_count", "remark", "nc_program_text", "Program_Name_Running"}
 DATASET_RE = re.compile(r"dataset([1-9][0-9]*)")
+SOURCE_ID_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 NEW_KEYS = ("machine_short", "machine_name", "domain", "coolant", "mic_type", "workpiece", "remark")
 
 
@@ -28,7 +32,14 @@ def validate_normalized(out_dir: str, source_id: str, tolerance_s: float = 0.05)
     Returns:
         dict with n_sessions, n_errors, errors (first 50), n_warnings, warnings (first 50), checks performed.
     """
-    root = Path(out_dir) / source_id
+    if not isinstance(source_id, str) or not SOURCE_ID_RE.fullmatch(source_id):
+        return {"error": "invalid source_id: must match ^[a-z0-9_-]{1,64}$"}
+    try:
+        safe_out_dir = resolve_under_roots(
+            out_dir, (work_dir(), os.environ.get("NORMALIZER_DATA_ROOT", "")))
+    except ValueError as e:
+        return {"error": str(e)}
+    root = safe_out_dir / source_id
     errors, warnings = [], []
     sessions = sorted(p for p in root.glob("*/*") if (p / "session.json").exists())
     # native label tokens (e.g. FRESH, BROKEN) must not appear in ids or session metadata used for analysis
@@ -195,12 +206,13 @@ def validate_normalized(out_dir: str, source_id: str, tolerance_s: float = 0.05)
             errors.append(f"{machine}: dataset<N> order does not follow sorted session_id")
 
     if (man / "events.jsonl").exists():
-        for line in open(man / "events.jsonl", encoding="utf-8"):
-            ev = json.loads(line)
-            leaked = LEAK_FIELDS & set(ev)
-            if leaked:
-                errors.append(f"event {ev.get('event_id')}: leak-prone fields in events table {sorted(leaked)}")
-                break
+        with open(man / "events.jsonl", encoding="utf-8") as fh:
+            for line in fh:
+                ev = json.loads(line)
+                leaked = LEAK_FIELDS & set(ev)
+                if leaked:
+                    errors.append(f"event {ev.get('event_id')}: leak-prone fields in events table {sorted(leaked)}")
+                    break
     else:
         errors.append("manifest/events.jsonl missing")
     return {"source_id": source_id, "n_sessions": len(sessions), "n_errors": len(errors), "errors": errors[:50],

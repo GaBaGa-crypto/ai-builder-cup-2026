@@ -36,6 +36,8 @@ from scipy.signal import butter as _butter, find_peaks as _find_peaks, hilbert a
     resample_poly as _resample_poly, sosfiltfilt as _sosfiltfilt, welch as _welch
 from scipy.fft import next_fast_len as _next_fast_len, rfft as _rfft
 
+from ._paths import redact_data_root, resolve_under_data_root
+
 _DB_FLOOR = 1e-20          # power floor inside every log (silence -> -200 dB, never -inf)
 
 # --- spindle-speed method constants (recorded in params) -------------------------------------
@@ -688,7 +690,7 @@ def _class_separability_impl(class_a, class_b, fs, bands, auc_margin, min_n, nam
 # PUBLIC ADK TOOLS (FunctionTool-wrappable).  Invalid input -> {"status": "error", "error": ...}.
 # ==================================================================================================
 def _err(tool: str, e: Exception) -> Dict[str, Any]:
-    return {"status": "error", "tool": tool, "error": f"{type(e).__name__}: {e}"}
+    return {"status": "error", "tool": tool, "error": redact_data_root(f"{type(e).__name__}: {e}")}
 
 
 # --- agent-facing guards (GF, D-3 / D-4).  None of them fires on a <= 60 s window of a >= 40 kHz file with the
@@ -798,11 +800,12 @@ def audio_profile(wav_path: str, t0_s: Optional[float] = None, t1_s: Optional[fl
         For files sampled below 40 kHz the bands above Nyquist are null and params.bandlimited is true.
     """
     try:
-        req, fs = _agent_window("audio_profile", wav_path, t0_s, t1_s, max_window_s)
+        safe_wav_path = str(resolve_under_data_root(wav_path))
+        req, fs = _agent_window("audio_profile", safe_wav_path, t0_s, t1_s, max_window_s)
         if req:
             return req
         bands, idx = _agent_bands(fs)
-        res = _audio_profile_impl(wav_path, None, t0_s, t1_s, float(frame_s), bands, 0.999, 0.01)
+        res = _audio_profile_impl(safe_wav_path, None, t0_s, t1_s, float(frame_s), bands, 0.999, 0.01)
         _cap_frames(res)
         if len(idx) < len(DEFAULT_BANDS):
             _mark_bandlimited(res, idx, fs)
@@ -843,11 +846,12 @@ def detect_change_points(wav_path: str, t0_s: Optional[float] = None, t1_s: Opti
         method and params.  Below 40 kHz sampling, per-band values above Nyquist are null (params.bandlimited).
     """
     try:
-        req, fs = _agent_window("detect_change_points", wav_path, t0_s, t1_s, max_window_s)
+        safe_wav_path = str(resolve_under_data_root(wav_path))
+        req, fs = _agent_window("detect_change_points", safe_wav_path, t0_s, t1_s, max_window_s)
         if req:
             return req
         bands, idx = _agent_bands(fs)
-        res = _detect_change_points_impl(wav_path, None, t0_s, t1_s, bands, 0.1, float(window_s),
+        res = _detect_change_points_impl(safe_wav_path, None, t0_s, t1_s, bands, 0.1, float(window_s),
                                          float(min_delta_db), 2.0, 0.999, 0.01,
                                          None if coarse_window_s is None else float(coarse_window_s))
         if len(idx) < len(DEFAULT_BANDS):
@@ -891,10 +895,11 @@ def estimate_spindle_speed(wav_path: str, t0_s: Optional[float] = None, t1_s: Op
         ratio_best_over_claimed, nearest_candidate_rpm), clip_ratio, clipped, method and params.
     """
     try:
-        req, _fs = _agent_window("estimate_spindle_speed", wav_path, t0_s, t1_s, max_window_s)
+        safe_wav_path = str(resolve_under_data_root(wav_path))
+        req, _fs = _agent_window("estimate_spindle_speed", safe_wav_path, t0_s, t1_s, max_window_s)
         if req:
             return req
-        return _estimate_spindle_speed_impl(wav_path, None, t0_s, t1_s, claimed_rpm,
+        return _estimate_spindle_speed_impl(safe_wav_path, None, t0_s, t1_s, claimed_rpm,
                                             None if flutes is None else int(flutes), (100.0, 30000.0), 0.03, 8,
                                             2.0, 0.999, 0.01, (0.35, 0.45))
     except Exception as e:  # noqa: BLE001
@@ -921,13 +926,15 @@ def class_separability(paths_a: List[str], paths_b: List[str], name_a: str = "A"
     """
     try:
         cap, _clamped = _agent_cap(max_seconds)
-        infos = [_sf.info(str(p)) for p in list(paths_a) + list(paths_b)]
+        safe_paths_a = [str(resolve_under_data_root(p)) for p in paths_a]
+        safe_paths_b = [str(resolve_under_data_root(p)) for p in paths_b]
+        infos = [_sf.info(p) for p in safe_paths_a + safe_paths_b]
         fs_min = min(int(i.samplerate) for i in infos) if infos else 48000
         n_trunc = sum(1 for i in infos if float(i.frames) / int(i.samplerate) > cap + 1e-9)
         tcap = cap if (n_trunc or max_seconds is not None) else None
         bands, idx = _agent_bands(fs_min)
-        A = [{"path": p, "t0_s": None, "t1_s": tcap} for p in paths_a]
-        B = [{"path": p, "t0_s": None, "t1_s": tcap} for p in paths_b]
+        A = [{"path": p, "t0_s": None, "t1_s": tcap} for p in safe_paths_a]
+        B = [{"path": p, "t0_s": None, "t1_s": tcap} for p in safe_paths_b]
         res = _class_separability_impl(A, B, None, bands, 0.25, 3, (str(name_a), str(name_b)), 0.999)
         if n_trunc:
             res["params"]["max_seconds_per_item"] = cap

@@ -15,6 +15,8 @@ from typing import List, Optional
 import numpy as np
 import soundfile as sf
 
+from ._paths import redact_data_root, resolve_under_data_root
+
 NFFT, HOP_S = 4096, 0.1
 BANDS = [("0-4k", 0, 4000), ("1-4k", 1000, 4000), ("4-10k", 4000, 10000), ("10-24k", 10000, 24001)]
 COLORS = {"0-4k": "#2b5c7a", "1-4k": "#7fb3d5", "4-10k": "#c47f1a", "10-24k": "#8a3b6e"}
@@ -77,14 +79,15 @@ def render_session_figure(wav_path: str, t0_s: Optional[float] = None, t1_s: Opt
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
-        info = sf.info(wav_path)
+        safe_wav_path = resolve_under_data_root(wav_path)
+        info = sf.info(str(safe_wav_path))
         sr, dur = int(info.samplerate), float(info.duration)
         a_s = 0.0 if t0_s is None else min(max(float(t0_s), 0.0), dur)
         b_s = dur if t1_s is None else min(max(float(t1_s), 0.0), dur)
         b_s = min(b_s, a_s + MAX_SECONDS)
         if b_s <= a_s:
             return {"status": "error", "error": f"empty window {a_s}-{b_s} s (file {dur:.3f} s)"}
-        x, _ = sf.read(wav_path, start=int(round(a_s * sr)), stop=int(round(b_s * sr)), dtype="float32",
+        x, _ = sf.read(str(safe_wav_path), start=int(round(a_s * sr)), stop=int(round(b_s * sr)), dtype="float32",
                        always_2d=True)
         x = x[:, 0]
         tw = a_s + np.arange(len(x)) / sr
@@ -121,15 +124,16 @@ def render_session_figure(wav_path: str, t0_s: Optional[float] = None, t1_s: Opt
                 ax.axvline(m, color="#c0392b", lw=1.0, ls="--")
             ax1.text(m, 1.0, f" {m:.2f} s", color="#c0392b", fontsize=8, va="top")
         ax2.set_xlim(a_s, b_s)
-        fig.suptitle(title or f"{Path(wav_path).name}  {a_s:.2f}-{b_s:.2f} s", fontsize=9, x=0.01, ha="left")
+        fig.suptitle(title or f"{safe_wav_path.name}  {a_s:.2f}-{b_s:.2f} s", fontsize=9, x=0.01, ha="left")
         fig.tight_layout(rect=(0, 0, 1, 0.96))
         d = _fig_dir()
         d.mkdir(parents=True, exist_ok=True)
-        stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(wav_path).stem)
+        stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", safe_wav_path.stem)
         png = d / f"{stem}_{a_s:.2f}-{b_s:.2f}s.png"
         fig.savefig(png, dpi=80)
         plt.close(fig)
         return {"status": "ok", "png_path": str(png), "t0_s": round(a_s, 3), "t1_s": round(b_s, 3),
                 "duration_s": round(dur, 3), "bands_hz": [[lo_, hi_] for _, lo_, hi_ in BANDS], "marks_s": marks}
     except Exception as e:  # noqa: BLE001
-        return {"status": "error", "tool": "render_session_figure", "error": f"{type(e).__name__}: {e}"}
+        return {"status": "error", "tool": "render_session_figure",
+                "error": redact_data_root(f"{type(e).__name__}: {e}")}

@@ -69,7 +69,7 @@ class IntervalLabel(BaseModel):
 
 class Mapping(BaseModel):
     mapping_version: str = "0.1"
-    source_id: str
+    source_id: str = Field(pattern=r"^[a-z0-9_-]{1,64}$")
     source_name: str
     url: Optional[str] = None
     license: Optional[str] = None

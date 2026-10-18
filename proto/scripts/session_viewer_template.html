@@ -169,6 +169,15 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   var fmt = function (v, d) { return v == null ? "—" : (+v).toFixed(d); };
   var num = function (v) { return v == null ? "" : (Math.round(v * 10000) / 10000).toString(); };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  function safeMediaUrl(s) {
+    try {
+      var u = new URL(String(s), location.href);
+      if (location.protocol === "file:") {
+        if (u.protocol !== "file:" || u.href.indexOf(new URL(".", location.href).href) !== 0) return "";
+      } else if (u.origin !== location.origin || !/^https?:$/.test(u.protocol)) return "";
+      return u.href;
+    } catch (e) { return ""; }
+  }
   function b64(s) { var b = atob(s), a = new Int8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = (b.charCodeAt(i) << 24) >> 24; return a; }
   function b64i16(s) { var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new Int16Array(u.buffer); }
   var BANDLAB = { "0-4k": "0–4 kHz", "1-4k": "1–4 kHz", "4-10k": "4–10 kHz", "10-24k": "10–24 kHz" };
@@ -211,7 +220,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
     $("flu").hidden = !EV.some(isUnl); $("flk").hidden = !EV.some(isUnk);
     var lossy = /\.mp3$/.test(CH[chan].url);
     $("audionote").textContent = "削波比例＝滿刻度樣本占比（s0）。" + (lossy ? "MP3 約 160 kbps 只供試聽；" : "播放的是原始 WAV（48 kHz、16-bit，無壓縮）；") + "波形由原始 WAV 計算。";
-    $("chans").innerHTML = chNames.map(function (c) { return '<button type="button" data-ch="' + c + '" aria-pressed="false" title="' + esc(CH[c].name) + '">' + c + "</button>"; }).join("");
+    $("chans").innerHTML = chNames.map(function (c) { return '<button type="button" data-ch="' + esc(c) + '" aria-pressed="false" title="' + esc(CH[c].name) + '">' + esc(c) + "</button>"; }).join("");
     filter = "all"; document.querySelectorAll("#filters button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.f === "all")); });
     view = [0, dur];
     setChan(chan, 0, false);
@@ -220,7 +229,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
 
   function setChan(c, t, play) {
     if (t == null) { t = pending ? pending.t : (audio.currentTime || 0); play = pending ? pending.play : !audio.paused; }
-    chan = c; pending = { t: t, play: play }; audio.src = CH[c].url;
+    chan = c; pending = { t: t, play: play }; audio.src = safeMediaUrl(CH[c].url);
     document.querySelectorAll("#chans button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.ch === c)); });
     $("wfname").textContent = "波形：" + CH[c].name + "（整場削波樣本 " + (CH[c].clip * 100).toFixed(2) + "%）";
     $("bandinfo").textContent = CH[c].name;
@@ -365,12 +374,14 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   // ---------- card & table ----------
   function pill(e) { return isUnk(e) ? '<span class="pill pk">切削狀態未知</span>' : !e.cut ? '<span class="pill pn">非切削</span>' : isUnl(e) ? '<span class="pill pu">未標註切削</span>' : e.lab === 1 ? '<span class="pill p1">標籤 1 異常</span>' : e.lab === 2 ? '<span class="pill p2">標籤 2 缺陷刀</span>' : '<span class="pill p0">標籤 0 正常</span>'; }
   function showCard(e) {
+    if (e) e = Object.assign({}, e, { i: esc(e.i), dir: esc(e.dir), rms: esc(e.rms) });
     if (I.sealed) { $("card").innerHTML = '<div class="h"><strong>切段封存</strong><span class="note">此場次不顯示事件；可以聽聲音、看波形與主軸轉速。</span></div>'; return; }
     if (!e) { $("card").innerHTML = '<div class="h"><strong>目前位置不在任何事件內</strong><span class="note">（小於 0.5 秒的空隙不算事件）</span></div>'; return; }
     var cond = isUnk(e) ? "來源沒說明這段是否在切削（切削狀態未知，標籤 -1，待人判定）；沒有工況" : (isUnl(e) ? "來源確定在切削、標籤未定（-1，待人判定）｜" : "") + (e.cut ? "N " + num(e.N) + " rpm｜F " + num(e.F) + " mm/s｜ap " + num(e.ap) + " mm｜ae " + num(e.ae) + " mm｜Z " + num(e.Z) + "｜D " + num(e.D) + " mm｜" + e.dir + "｜刀具 " + esc(e.tool) : "非切削段沒有工況");
     $("card").innerHTML = '<div class="h"><strong>目前事件 #' + e.i + "</strong>" + pill(e) + '<span class="mono">' + e.s.toFixed(3) + "–" + e.e.toFixed(3) + " 秒（" + e.d.toFixed(2) + " 秒）</span></div><div>" + cond + '</div><div class="note">s0 削波比例 ' + (e.clip * 100).toFixed(2) + "%｜冷卻 " + esc(e.cool) + "｜s0 音量 " + e.rms + " dBFS</div>";
   }
   function rowHTML(e) {
+    e = Object.assign({}, e, { i: esc(e.i), dir: esc(e.dir), rms: esc(e.rms) });
     return '<tr data-i="' + e.i + '"><td class="n">' + e.i + "</td><td>" + pill(e) + '</td><td class="n">' + e.s.toFixed(3) + '</td><td class="n">' + e.e.toFixed(3) + '</td><td class="n">' + e.d.toFixed(2) +
       '</td><td class="n">' + num(e.N) + '</td><td class="n">' + num(e.F) + '</td><td class="n">' + num(e.ap) + '</td><td class="n">' + num(e.ae) + '</td><td class="n">' + num(e.Z) + '</td><td class="n">' + num(e.D) +
       "</td><td>" + e.dir + "</td><td>" + esc(e.tool) + '</td><td class="n">' + (e.clip * 100).toFixed(2) + '%</td><td>' + esc(e.cool) + '</td><td class="n">' + e.rms + "</td></tr>";
@@ -405,7 +416,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   function optText(s) { return "ds" + (s.dataset < 10 ? "0" : "") + s.dataset + " · " + kindText(s) + (s.sealed ? "" : " · " + s.n0 + "／" + s.n1 + "／" + s.n2 + (s.n_unlabeled ? "／未標註 " + s.n_unlabeled : "")) + " · " + (s.dur / 60).toFixed(1) + " 分" + (s.remark ? " · " + s.remark : ""); }
   function listFor(m) { return SESS.filter(function (s) { return s.machine_key === m && (!$("onlyAnom").checked || s.sealed || s.n1 || s.n2); }); }
   function fillDatasets(m, keepDs) {
-    var L = listFor(m);
+    var L = listFor(m).filter(function (s) { return Number.isInteger(s.dataset) && s.dataset >= 0; });
     $("pd").innerHTML = L.map(function (s) { return '<option value="' + s.dataset + '">' + esc(optText(s)) + "</option>"; }).join("");
     if (keepDs != null && L.some(function (s) { return s.dataset === keepDs; })) $("pd").value = String(keepDs);
   }
@@ -436,6 +447,7 @@ td.empty { white-space:normal; color:var(--muted); cursor:default; padding:16px;
   fetch("api/sessions").then(function (r) { return r.json(); }).then(function (list) {
     SESS = list;
     list.forEach(function (s) { if (machines.indexOf(s.machine_key) < 0) machines.push(s.machine_key); });
+    machines = machines.filter(function (m) { return /^[a-z0-9_]+$/.test(m); });
     $("pm").innerHTML = machines.map(function (m) { var s = list.filter(function (x) { return x.machine_key === m; }); return '<option value="' + m + '">' + esc(s[0].machine) + "（" + s.length + " 場）</option>"; }).join("");
     openHash();
     window.addEventListener("hashchange", openHash);  // 直接改網址或瀏覽器上一頁也能切場次

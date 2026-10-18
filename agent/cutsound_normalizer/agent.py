@@ -98,8 +98,12 @@ def save_mapping(mapping_json: str) -> dict:
         m = Mapping.model_validate_json(mapping_json)
     except Exception as e:  # noqa: BLE001
         return {"status": "invalid", "errors": str(e)[:3000]}
-    WORK_DIR.mkdir(parents=True, exist_ok=True)
     p = WORK_DIR / "mappings" / f"{m.source_id}.json"
+    try:
+        p.resolve().relative_to(WORK_DIR.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return {"status": "invalid", "errors": "destination not allowed"}
+    WORK_DIR.mkdir(parents=True, exist_ok=True)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(m.model_dump_json(indent=1), encoding="utf-8")
     return {"status": "saved_pending_approval", "path": str(p), "n_label_rules": len(m.label_rules),

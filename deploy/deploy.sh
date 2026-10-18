@@ -12,13 +12,14 @@ BUCKET=${BUCKET:-${PROJECT}-msm-viewer}
 BUNDLE=${BUNDLE:-$HOME/m143359/金屬中心/datasets/MSM/viewer_bundle}
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 TOKEN_FILE=$HOME/.config/msm-viewer/token
+TOKEN_SECRET=${TOKEN_SECRET:-msm-viewer-token}
 SA="${SA_NAME}@${PROJECT}.iam.gserviceaccount.com"
 
 [ -f "$BUNDLE/sessions.json" ] || { echo "找不到資料包 $BUNDLE（先跑 proto/scripts/export_viewer_bundle.py）"; exit 1; }
 gcloud config set project "$PROJECT" >/dev/null
 echo "== 啟用 API"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  storage.googleapis.com iam.googleapis.com compute.googleapis.com
+  storage.googleapis.com iam.googleapis.com compute.googleapis.com secretmanager.googleapis.com
 
 echo "== 私有 bucket 與專屬服務帳號（只能讀這個 bucket）"
 gcloud storage buckets describe "gs://$BUCKET" >/dev/null 2>&1 || \
@@ -40,16 +41,33 @@ gcloud storage rsync -r -c --exclude='^audio/' "$BUNDLE" "gs://$BUCKET"
 # 存取碼：第一次產生後存在本機（權限 600），之後重用
 if [ ! -s "$TOKEN_FILE" ]; then
   mkdir -p "$(dirname "$TOKEN_FILE")"; umask 077
-  python3 -c 'import secrets; print(secrets.token_urlsafe(24))' > "$TOKEN_FILE"
+  # 用能 import 的直譯器（Windows 的 python3 可能是商店安裝提示 stub）
+  GEN_PY=; for p in python "$HOME/AppData/Local/anaconda3/envs/audio_preject/python.exe" python3; do
+    "$p" -c 'import secrets' >/dev/null 2>&1 && { GEN_PY=$p; break; }; done
+  [ -n "$GEN_PY" ] || { echo "找不到可用的 Python 來產生存取碼" >&2; exit 1; }
+  "$GEN_PY" -c 'import secrets, sys; sys.stdout.write(secrets.token_urlsafe(24))' > "$TOKEN_FILE"
 fi
-TOKEN=$(cat "$TOKEN_FILE")
+
+echo "== 將存取碼存入 Secret Manager（不放入部署指令參數）"
+if gcloud secrets describe "$TOKEN_SECRET" --project "$PROJECT" >/dev/null 2>&1; then
+  tr -d '\r\n' < "$TOKEN_FILE" | \
+    gcloud secrets versions add "$TOKEN_SECRET" --project "$PROJECT" --data-file=- --quiet >/dev/null
+else
+  tr -d '\r\n' < "$TOKEN_FILE" | \
+    gcloud secrets create "$TOKEN_SECRET" --project "$PROJECT" --replication-policy=automatic \
+      --data-file=- --quiet >/dev/null
+fi
+gcloud secrets add-iam-policy-binding "$TOKEN_SECRET" --project "$PROJECT" \
+  --member="serviceAccount:$SA" --role=roles/secretmanager.secretAccessor --quiet >/dev/null
 
 echo "== 部署 Cloud Run（Cloud Build 在雲端建 x86 映像）"
+# gcloud applies literal env removals before secret env additions, allowing migration of the existing service.
 gcloud run deploy "$SERVICE" --source "$REPO" --region "$REGION" --quiet \
   --service-account "$SA" --allow-unauthenticated --execution-environment gen2 \
   --add-volume name=bundle,type=cloud-storage,bucket="$BUCKET",readonly=true \
   --add-volume-mount volume=bundle,mount-path=/bundle \
-  --set-env-vars VIEWER_TOKEN="$TOKEN" \
+  --remove-env-vars VIEWER_TOKEN \
+  --set-secrets VIEWER_TOKEN="${TOKEN_SECRET}:latest" \
   --memory 512Mi --cpu 1 --max-instances 2 --concurrency 40
 
 URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')

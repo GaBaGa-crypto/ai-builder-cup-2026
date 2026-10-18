@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
+from ..proposals import work_dir
+from ._paths import resolve_under_roots
+
 ANALYSIS_TABLES = ("sources", "sessions", "events", "context")
 PROVENANCE_TABLES = ("provenance",)
+SOURCE_ID_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 
 # Fixed column types so every source appends to the same BigQuery schema (sources differ: '' vs 520 vs '10000').
 FLOAT_COLS = {
@@ -65,11 +70,18 @@ def load_tables(out_dir: str, source_id: str, project: Optional[str] = None, dat
     Returns:
         dict with row counts, local paths, and BigQuery status (loaded / skipped with reason).
     """
-    man = Path(out_dir) / source_id / "_manifest"
+    if not isinstance(source_id, str) or not SOURCE_ID_RE.fullmatch(source_id):
+        return {"error": "invalid source_id: must match ^[a-z0-9_-]{1,64}$"}
+    try:
+        safe_out_dir = resolve_under_roots(
+            out_dir, (work_dir(), os.environ.get("NORMALIZER_DATA_ROOT", "")))
+    except ValueError as e:
+        return {"error": str(e)}
+    man = safe_out_dir / source_id / "_manifest"
     if not man.exists():
         return {"error": f"no manifest for {source_id}; run convert_source first"}
     frames = _frames(man)
-    tdir = Path(out_dir) / source_id / "_tables"
+    tdir = safe_out_dir / source_id / "_tables"
     tdir.mkdir(parents=True, exist_ok=True)
     local = {}
     for name, df in frames.items():
@@ -85,6 +97,7 @@ def load_tables(out_dir: str, source_id: str, project: Optional[str] = None, dat
                 "bigquery": {"status": "skipped", "reason": "no GCP project configured (set GOOGLE_CLOUD_PROJECT)"}}
     try:
         import google.auth
+        from google.api_core.exceptions import NotFound
         from google.cloud import bigquery
         creds, _ = google.auth.default()
         client = bigquery.Client(project=project, credentials=creds, location=location)
@@ -94,7 +107,11 @@ def load_tables(out_dir: str, source_id: str, project: Optional[str] = None, dat
 
     loaded = {}
     for ds_name, names in ((dataset, ANALYSIS_TABLES), (provenance_dataset, PROVENANCE_TABLES)):
-        client.create_dataset(bigquery.Dataset(f"{project}.{ds_name}"), exists_ok=True)
+        dataset_ref = bigquery.Dataset(f"{project}.{ds_name}")
+        try:
+            client.get_dataset(dataset_ref)
+        except NotFound:
+            client.create_dataset(dataset_ref)
         for name in names:
             df = frames.get(name)
             if df is None or df.empty:
